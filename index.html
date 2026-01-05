@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Xianxia Idle V1.2.0</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+  html, body {
+    height: auto;
+    overflow-y: auto;
+  }
+  #itch-scroll {
+    height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+</style>
+</head>
+<body>
+  <div id="itch-scroll">
+  <header class="topbar">
+    <h1>Xianxia Idle V1.2.0</h1>
+    <div style="display: flex; gap: 12px;">
+      <button id="achievementsBtn" class="btn topbar-btn" aria-haspopup="true" aria-expanded="false">
+        🏆 Achievements <span id="achievementsBadge">0/0</span>
+      </button>
+      <button id="settingsBtn" class="settings-btn btn" aria-haspopup="true" aria-expanded="false">Settings</button>
+    </div>
+  </header>
+  
+  <!-- Settings Panel -->
+  <div id="settingsPanel" class="settings-panel" aria-hidden="true">
+    <h3 style="margin:0 0 8px 0;">Audio</h3>
+    <div class="settings-row">
+      <label for="musicVolume">Volume</label>
+      <input id="musicVolume" type="range" min="0" max="100" value="40" />
+    </div>
+    <div class="settings-row">
+      <label for="musicMuteToggle">Mute</label>
+      <button id="musicMuteToggle" class="btn">Mute</button>
+    </div>
+    <div class="settings-note" id="trackInfo">Track 1/7</div>
+    <div class="settings-note" id="autoplayNote" style="display:none;">Autoplay blocked — unmute or interact to start.</div>
+  </div>
+
+  <!-- Achievements Panel -->
+  <div id="achievementsPanel" class="achievements-panel" aria-hidden="true">
+    <div class="achievements-header">
+      <h3 class="achievements-title">🏆 Achievements</h3>
+      <button id="achievementsClose" class="achievements-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="achievements-filters">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="unlocked">Unlocked</button>
+      <button class="filter-btn" data-filter="locked">Locked</button>
+      <button class="filter-btn" data-filter="Progression">Progress</button>
+      <button class="filter-btn" data-filter="Skills">Skills</button>
+      <button class="filter-btn" data-filter="Reincarnation">Rebirth</button>
+      <button class="filter-btn" data-filter="Time">Time</button>
+      <button class="filter-btn" data-filter="Misc">Misc</button>
+      <button class="filter-btn impossible-filter" data-filter="Impossible">Impossible</button>
+    </div>
+    <div id="achievementsList" class="achievements-list">
+      <!-- Achievements will be populated by JavaScript -->
+    </div>
+  </div>
+  <main class="wrap">
+    <section class="card">
+      <h2>Cultivator State</h2>
+      <div class="body">
+        <div class="stat big" id="qiDisplay">Qi: 0</div>
+        <div class="stat"><span>Qi per click</span><span id="qpc">0</span></div>
+        <div class="stat"><span>Qi per second</span><span id="qps">0</span></div>
+        <div class="stat"><span>Offline multiplier</span><span id="offlineMult">1×</span></div>
+        <div class="stat" id="lifespanRow">
+          <span class="label">Lifespan</span>
+          <span id="lifespanValue">0.00 / 100.00</span>
+        </div>
+        <div style="margin: 4px 0;">
+          <div class="progress" id="lifespanProgress"><div></div></div>
+        </div>
+        <div class="stat"><span>Deaths</span><span id="deathsCount">0</span></div>
+        <div class="stat"><span>Karma</span><span id="karmaVal">0</span></div>
+        <div class="stat"><span>Reincarnation bonus</span><span id="reincBonus">1.00×</span></div>
+        <div class="stat"><span>Reincarnations</span><span id="reincTimes">0</span></div>
+        <!-- OLD: Removed duplicate transcendenceStatus div - now using transcendencePanel card below -->
+        <div class="small muted" style="margin-top: 4px; text-align: center;">Each reincarnation permanently increases your cultivation efficiency.</div>
+        
+        <!-- Transcendence Panel -->
+        <hr style="border-color:#1e2631; margin: 12px 0 8px 0;"/>
+        <section id="transcendencePanel" style="margin: 8px 0;">
+          <!-- Filled by renderTranscendencePanel() -->
+        </section>
+        
+        <!-- Time Speed Control -->
+        <hr style="border-color:#1e2631; margin: 12px 0 8px 0;"/>
+        <div class="stat">
+          <span>⏱ Time Flow</span>
+          <div id="speedButtons" class="speed-buttons"></div>
+        </div>
+        
+        <hr style="border-color:#1e2631"/>
+        <div>
+          <div class="stat"><span>Realm</span><span id="realmName"></span></div>
+          <div class="stat"><span>Stage</span><span id="realmStage"></span></div>
+          <div class="progress"><div id="realmProg"></div></div>
+          <div class="small muted" id="realmReqText">Requirement to advance: —</div>
+          <div class="row" style="margin-top:10px">
+            <button id="breakthroughBtn" class="btn accent" disabled>Break the bottleneck</button>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Cultivation Zone</h2>
+      <div class="body">
+        <div id="cultivationZone" class="cz">
+          <div class="cultivator-frame" id="clickBtn" role="button" tabindex="0" aria-label="Cultivar (clic)">
+            <img src="assets/cultivator.jpg" alt="Cultivador meditando" id="cultivatorImg" />
+            <div id="cycleBadge" class="cycle-badge">Mortal Cycle</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Skills</h2>
+      <div class="body" id="shop"></div>
+    </section>
+  </main>
+
+  <section class="card" style="margin:0 16px 16px 16px">
+    <h2>Export / Import</h2>
+    <div class="body">
+      <textarea id="ioArea" placeholder="Paste your save code here or copy the export"></textarea>
+      <div class="actions-bar">
+        <button id="saveBtn" class="btn">Save <span class="kbd">Ctrl+S</span></button>
+        <div class="muted small" id="lastSave" style="margin-top: 10px; text-align: center;">Last Save: —</div>
+        <button id="exportBtn" class="btn">Export</button>
+        <button id="importBtn" class="btn">Import</button>
+        <button id="resetBtn" class="btn danger">Reset</button>
+      </div>
+      <div class="footer">
+        <span class="muted small">Data is automatically saved every 15s in this browser</span>
+        <span class="muted small">version: <span id="ver"></span></span>
+      </div>
+    </div>
+  </section>
+    </div>
+  
+  <!-- Background Music -->
+  <audio id="bgm" preload="auto"></audio>
+  
+  <script defer src="js/main.js"></script>
+
+
+<div style="position:fixed; bottom:10px; right:10px; background:#0b0f14; border:1px solid #7ee787; padding:15px; z-index:99999; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.8); color:#e6edf3; font-family:sans-serif;">
+  <h4 style="margin:0 0 10px 0; color:#7ee787; text-transform:uppercase;">Dev Hacks</h4>
+  
+  <div style="display:flex; flex-direction:column; gap:5px;">
+    <button onclick="S.qi += 1e50; S.reinc.lifetimeQi += 1e50; renderAll();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #7ee787; color:#fff;">
+      ⚡ Add 1e50 Qi
+    </button>
+    
+    <button onclick="S.reinc.karma += 50000; renderAll();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #a18aff; color:#fff;">
+      ☯ Add 50k Karma
+    </button>
+
+    <button onclick="doBreakthrough(); S.qi = stageRequirement(S.realmIndex, S.stage); doBreakthrough();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #ff6b6b; color:#fff;">
+      🚀 Force Breakthrough
+    </button>
+
+    <button onclick="Object.keys(BAL.skills).forEach(k => S.skills[k] = (S.skills[k]||0)+100); renderAll();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #ffd700; color:#fff;">
+      📚 +100 All Skills
+    </button>
+  </div>
+</div>
+
+
+
+
+</body>
+</html>

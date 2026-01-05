@@ -1,0 +1,58 @@
+{
+  "skills": {
+    "breath_control":   { "base": 1.20, "cost": 20,  "costScale": 1.18, "ranksPerRealm": 20, "type": "qps_flat" },
+    "meridian_flow":    { "base": 2.00, "cost": 45,  "costScale": 1.18, "ranksPerRealm": 20, "type": "qpc_flat" },
+    "lotus_meditation": { "base": 0.008, "cost": 140, "costScale": 1.20, "ranksPerRealm": 15, "capPctPerRealm": 0.12, "type": "qps_pct" },
+    "dantian_temps":    { "base": 0.008, "cost": 110, "costScale": 1.20, "ranksPerRealm": 15, "capPctPerRealm": 0.12, "type": "qpc_pct" },
+    "closed_door":      { "base": 0.005, "cost": 150, "costScale": 1.22, "ranksPerRealm": 10, "capPctPerRealm": 0.08, "type": "offline_pct" },
+
+    "celestial_resonance": { "oneTime": true, "type": "qps_pct", "value": 0.12, "cost": 2500000, "unlockAtCycle": "spirit", "icon": "celestialresonance.png" },
+    "void_convergence":    { "oneTime": true, "type": "qpc_pct", "value": 0.12, "cost": 4000000, "unlockAtCycle": "spirit", "icon": "voidconvergence.png" }
+  },
+  
+  "realmBaselines": {
+    "qpsFlatPerRank": 0.15,
+    "qpcFlatPerRank": 0.25
+  },
+  "stageRequirement": {
+    "realmBase": 80,
+    "realmBaseScale": 5,
+    "stageScale": 1.42
+  },
+  "progression": {
+    "qpcBaseStart": 1,
+    "qpsBaseStart": 0,
+    "realmAdvanceReward": { "qpcBaseAdd": 2.5, "qpsBaseAdd": 1.8 }
+  },
+  "reincarnation": {
+    "karmaPerUnit": 0.12,
+    "lifetimeQiDivisor": 5000,
+    "realmKarmaFactor": 4,
+    "minKarma": 3,
+    "deathPenalty": 0.5,
+    "offlineKarmaBonus": 1.5
+  },
+  "offline": { "capHours": 16 },
+  "lifespan": {
+    "realmMaxLifespan": [50, 100, 200, 500, 1000, 3000, 10000, 50000, 100000, 500000, null],
+    "yearsPerSecond": 0.5
+  },
+  "timeSpeed": {
+    "speeds": [0, 0.5, 1, 2, 4, 6, 8, 10],
+    "unlockRealmIndex": [0, 0, 0, 2, 4, 6, 8, 9, 10]
+  },
+  "cycleDefinitions": {
+    "mortal": { 
+      "realms": [0, 1, 2, 3, 4, 5], 
+      "realmBonus": 0.25,
+      "name": "Mortal Cycle",
+      "description": "The journey from mortality to cultivation"
+    },
+    "spirit": { 
+      "realms": [6, 7, 8, 9, 10], 
+      "realmBonus": 0.50,
+      "name": "Spirit Cycle", 
+      "description": "The celestial path of divine cultivation"
+    }
+  }
+}
