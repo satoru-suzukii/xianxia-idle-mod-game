@@ -32,60 +32,42 @@ Made with ❤️ by **Santiago**
 
 
 
+## 🛠️ Developer & Debug Tools
+For development testing and balancing purposes, a **Dev Mode** panel has been integrated directly into the game interface. This allows for rapid testing of high-level features without the need for manual grinding.
+
+### How to Access:
+1. Click the **Settings** button in the top navigation bar.
+2. Locate the **Dev Mode** section.
+3. Click the **Show/Hide** button to toggle the debug console.
+
+### Available Debug Commands:
+- **⚡ Add 1e50 Qi:** Instantly boosts Qi for testing high-cost skill balancing.
+- **☯ Add 50k Karma:** Grants Karma to test reincarnation and shop modifiers.
+- **🚀 Force Breakthrough:** Skips the current bottleneck to test realm-specific mechanics.
+- **📚 +100 All Skills:** Levels up all acquired skills to verify late-game scaling.
+
+*Note: These tools are intended for demo testing and development. Using them will significantly bypass the intended gameplay loop.*
 
 
 
 
 
-Changes in this MOD:
+## 🌌 Cultivation Realms (Progression)
+The path to immortality is divided into several major realms. Each realm consists of 10 stages that the cultivator must breakthrough to reach the next level of existence:
 
-1/
-Added 4 buttons through Html file. Inside the html file, just before the ending body tag, added the code below:
-<div style="position:fixed; bottom:10px; right:10px; background:#0b0f14; border:1px solid #7ee787; padding:15px; z-index:99999; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.8); color:#e6edf3; font-family:sans-serif;">
-  <h4 style="margin:0 0 10px 0; color:#7ee787; text-transform:uppercase;">Dev Hacks</h4>
-  
-  <div style="display:flex; flex-direction:column; gap:5px;">
-    <button onclick="S.qi += 1e50; S.reinc.lifetimeQi += 1e50; renderAll();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #7ee787; color:#fff;">
-      ⚡ Add 1e50 Qi
-    </button>
-    
-    <button onclick="S.reinc.karma += 50000; renderAll();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #a18aff; color:#fff;">
-      ☯ Add 50k Karma
-    </button>
-
-    <button onclick="doBreakthrough(); S.qi = stageRequirement(S.realmIndex, S.stage); doBreakthrough();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #ff6b6b; color:#fff;">
-      🚀 Force Breakthrough
-    </button>
-    
-    <button onclick="Object.keys(BAL.skills).forEach(k => S.skills[k] = (S.skills[k]||0)+100); renderAll();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #ffd700; color:#fff;">
-      📚 +100 All Skills
-    </button>
-  </div>
-</div>
-
-
-2/
-Renamed the realms. Inside main.js file, Just after the 'const realms' (line 505) modified to code below.
-const realms = [
-  { id:'mortal_realm', name:'Mortal Realm' },
-  { id:'qi_refining', name:'Qi Refining' },
-  { id:'foundation_establishment', name:'Foundation Establishment' },
-  { id:'golden_core', name:'Golden Core' },
-  { id:'nascent_soul', name:'Nascent Soul' },
-  { id:'spirit_transformation', name:'Spirit Transformation' },
-  { id:'void_refining', name:'Ascension' },
-  { id:'body_integration', name:'Profound Immortal' },
-  { id:'mahayana', name:'Immortal Vulnerable' },
-  { id:'tribulation_transcendence', name:'Immortal Emperor' },
-  { id:'true_immortal', name:'God Realm' },
-];
-
-
-
-
-Everything remains same.
-
-
+| Rank | Realm Name | Description |
+| :--- | :--- | :--- |
+| 1 | **Mortal Realm** | The starting point of every journey. |
+| 2 | **Qi Refining** | Gathering the world's energy into the body. |
+| 3 | **Foundation Establishment** | Solidifying the internal energy source. |
+| 4 | **Golden Core** | Forming the core of spiritual power. |
+| 5 | **Nascent Soul** | Birthing the spiritual self. |
+| 6 | **Spirit Transformation** | Transcending the physical constraints. |
+| 7 | **Ascension** | Shedding the mortal coil to enter higher planes. |
+| 8 | **Profound Immortal** | Mastering the laws of the immortal world. |
+| 9 | **Immortal Venerable** | Standing at the peak of immortal power. |
+| 10 | **Immortal Emperor** | Ruling over the heavens and earth. |
+| 11 | **God Realm** | Achieving true divinity and eternal existence. |
 
 
 
