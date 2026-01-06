@@ -43,8 +43,7 @@ For development testing and balancing purposes, a **Dev Mode** panel has been in
 ### Available Debug Commands:
 - **⚡ Add 1e50 Qi:** Instantly boosts Qi for testing high-cost skill balancing.
 - **☯ Add 50k Karma:** Grants Karma to test reincarnation and shop modifiers.
-- **🚀 Force Breakthrough:** Skips the current bottleneck to test realm-specific mechanics.
-- **📚 +100 All Skills:** Levels up all acquired skills to verify late-game scaling.
+
 
 *Note: These tools are intended for demo testing and development. Using them will significantly bypass the intended gameplay loop.*
 
