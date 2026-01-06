@@ -155,29 +155,41 @@
   <script defer src="js/main.js"></script>
 
 
-<div style="position:fixed; bottom:10px; right:10px; background:#0b0f14; border:1px solid #7ee787; padding:15px; z-index:99999; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.8); color:#e6edf3; font-family:sans-serif;">
-  <h4 style="margin:0 0 10px 0; color:#7ee787; text-transform:uppercase;">Dev Hacks</h4>
+
+
+<div id="devMenu" style="position:fixed; bottom:10px; right:10px; z-index:99999; font-family:sans-serif;">
   
-  <div style="display:flex; flex-direction:column; gap:5px;">
-    <button onclick="S.qi += 1e50; S.reinc.lifetimeQi += 1e50; renderAll();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #7ee787; color:#fff;">
-      ⚡ Add 1e50 Qi
+  <button onclick="const m=document.getElementById('devContent'); m.style.display=m.style.display==='none'?'flex':'none'" 
+          style="width:50px; height:50px; border-radius:25px; background:#7ee787; border:none; box-shadow:0 4px 10px rgba(0,0,0,0.5); cursor:pointer; font-size:20px;">
+    ⚙️
+  </button>
+
+  <div id="devContent" style="display:none; flex-direction:column; gap:8px; background:#0b0f14; border:1px solid #7ee787; padding:12px; border-radius:8px; margin-bottom:10px; position:absolute; bottom:60px; right:0; width:180px; box-shadow:0 0 20px rgba(0,0,0,0.8);">
+    
+    <h4 style="margin:0; color:#7ee787; font-size:12px; text-transform:uppercase;">Dev Hack Menu</h4>
+    
+    <button onclick="S.qi += 1e50; S.reinc.lifetimeQi += 1e50; renderAll();" style="cursor:pointer; padding:8px; background:#121923; border:1px solid #7ee787; color:#fff; font-size:11px;">
+      ⚡ +1e50 Qi
     </button>
     
-    <button onclick="S.reinc.karma += 50000; renderAll();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #a18aff; color:#fff;">
-      ☯ Add 50k Karma
+    <button onclick="S.reinc.karma += 50000; renderAll();" style="cursor:pointer; padding:8px; background:#121923; border:1px solid #a18aff; color:#fff; font-size:11px;">
+      ☯ +50k Karma
     </button>
 
-    <button onclick="doBreakthrough(); S.qi = stageRequirement(S.realmIndex, S.stage); doBreakthrough();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #ff6b6b; color:#fff;">
-      🚀 Force Breakthrough
+    <button onclick="doBreakthrough(); S.qi = stageRequirement(S.realmIndex, S.stage); doBreakthrough();" style="cursor:pointer; padding:8px; background:#121923; border:1px solid #ff6b6b; color:#fff; font-size:11px;">
+      🚀 Skip Stage
     </button>
 
-    <button onclick="Object.keys(BAL.skills).forEach(k => S.skills[k] = (S.skills[k]||0)+100); renderAll();" style="cursor:pointer; padding:5px; background:#121923; border:1px solid #ffd700; color:#fff;">
-      📚 +100 All Skills
+    <button onclick="S.realmIndex = Math.min(S.realmIndex + 1, 10); renderAll();" style="cursor:pointer; padding:8px; background:#121923; border:1px solid #00ffff; color:#fff; font-size:11px;">
+      🌌 Next Realm
     </button>
+    
+    <button onclick="S.meta.unlockedSpeeds=[1,10,100,1000]; S.timeSpeed.current=100; renderAll();" style="cursor:pointer; padding:8px; background:#121923; border:1px solid #fff; color:#fff; font-size:11px;">
+      ⏩ 100x Speed
+    </button>
+
   </div>
 </div>
-
-
 
 
 </body>
