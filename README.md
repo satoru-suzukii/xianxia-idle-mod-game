@@ -56,18 +56,15 @@ The path to immortality is divided into several major realms. Each realm consist
 
 | Rank | Realm Name | Description |
 | :--- | :--- | :--- |
-| 1 | **Mortal Realm** | The starting point of every journey. |
-| 2 | **Qi Refining** | Gathering the world's energy into the body. |
+| 1 | **Mortal Realm** | Cleansing the mortal frame and opening the meridians. |
+| 2 | **Qi Refining** | The fundamental gathering of spiritual energy into the body. |
 | 3 | **Foundation Establishment** | Solidifying the internal energy source. |
-| 4 | **Golden Core** | Forming the core of spiritual power. |
+| 4 | **Golden Core** | Condensing liquid Qi into a solid core and forming the core of spiritual power. |
 | 5 | **Nascent Soul** | Birthing the spiritual self. |
-| 6 | **Spirit Transformation** | Transcending the physical constraints. |
-| 7 | **Ascension** | Shedding the mortal coil to enter higher planes. |
+| 6 | **Spirit Transformation** | Transcending the physical constraints by converting Qi into Spiritual Force and mastering the power of Domain. |
+| 7 | **Ascension** | Shedding the mortal coil to enter higher planes and touch the laws of the World. |
 | 8 | **Profound Immortal** | Mastering the laws of the immortal world. |
-| 9 | **Immortal Venerable** | Standing at the peak of immortal power. |
-| 10 | **Immortal Emperor** | Ruling over the heavens and earth. |
-| 11 | **God Realm** | Achieving true divinity and eternal existence. |
-
-
-
+| 9 | **Immortal Venerable** | Standing at the peak of immortal power and beginning to grasp the truth of Essence. |
+| 10 | **Immortal Emperor** | Ruling over the heavens. |
+| 11 | **God Realm** | Achieving true divinity and eternal existence by transcending the cycle of Karma. |
 
