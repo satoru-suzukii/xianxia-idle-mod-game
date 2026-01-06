@@ -58,6 +58,10 @@
        <button onclick="S.qi += 1e50; S.reinc.lifetimeQi += 1e50; renderAll();" class="btn" style="border:1px solid #7ee787; color:#7ee787;">
         ⚡ Add 1e50 Qi
       </button>
+
+      <button onclick="S.qi = 0; renderAll();" class="btn" style="border:1px solid #ffa500; color:#ffa500;">
+        🗑️ Empty Qi Storage
+      </button>
       
       <button onclick="S.reinc.karma += 50000; renderAll();" class="btn" style="border:1px solid #a18aff; color:#a18aff;">
         ☯ Add 50k Karma
