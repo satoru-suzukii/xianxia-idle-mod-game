@@ -511,7 +511,7 @@ const realms = [
   { id:'spirit_transformation', name:'Spirit Transformation' },
   { id:'void_refining', name:'Ascension' },
   { id:'body_integration', name:'Profound Immortal' },
-  { id:'mahayana', name:'Immortal Vulnerable' },
+  { id:'mahayana', name:'Immortal Venerable' },
   { id:'tribulation_transcendence', name:'Immortal Emperor' },
   { id:'true_immortal', name:'God Realm' },
 ];
