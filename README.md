@@ -21,13 +21,12 @@ Players cultivate their Qi, unlock powerful skills, and ascend through spiritual
 - **LocalStorage** for save data  
 - Fully client-side — no backend required  
 
-## 🚀 Demo
-Play it online: (https://xianxia-idle-demo.netlify.app/)
 
 ---
 
 Made with ❤️ by **Santiago**  
 *“Cultivate your patience as you cultivate your Qi.”*
+
 
 
 
@@ -42,7 +41,7 @@ For development testing and balancing purposes, a **Dev Mode** panel has been in
 
 ### Available Debug Commands:
 - **⚡ Add 1e50 Qi:** Instantly boosts Qi for testing high-cost skill balancing.
-- **☯ Add 50k Karma:** Grants Karma to test reincarnation and shop modifiers.
+- **☯ Empty Qi storage:** Empty the Qi storage.
 
 
 *Note: These tools are intended for demo testing and development. Using them will significantly bypass the intended gameplay loop.*
