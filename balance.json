@@ -1,10 +1,10 @@
 {
   "skills": {
-    "breath_control":   { "base": 1.20, "cost": 20,  "costScale": 1.18, "ranksPerRealm": 20, "type": "qps_flat" },
-    "meridian_flow":    { "base": 2.00, "cost": 45,  "costScale": 1.18, "ranksPerRealm": 20, "type": "qpc_flat" },
-    "lotus_meditation": { "base": 0.008, "cost": 140, "costScale": 1.20, "ranksPerRealm": 15, "capPctPerRealm": 0.12, "type": "qps_pct" },
-    "dantian_temps":    { "base": 0.008, "cost": 110, "costScale": 1.20, "ranksPerRealm": 15, "capPctPerRealm": 0.12, "type": "qpc_pct" },
-    "closed_door":      { "base": 0.005, "cost": 150, "costScale": 1.22, "ranksPerRealm": 10, "capPctPerRealm": 0.08, "type": "offline_pct" },
+    "breath_control":   { "base": 1.20, "cost": 20,  "costScale": 1.18, "ranksPerRealm": 12, "type": "qps_flat" },
+    "meridian_flow":    { "base": 2.00, "cost": 45,  "costScale": 1.18, "ranksPerRealm": 12, "type": "qpc_flat" },
+    "lotus_meditation": { "base": 0.008, "cost": 140, "costScale": 1.20, "ranksPerRealm": 12, "capPctPerRealm": 0.12, "type": "qps_pct" },
+    "dantian_temps":    { "base": 0.008, "cost": 110, "costScale": 1.20, "ranksPerRealm": 12, "capPctPerRealm": 0.12, "type": "qpc_pct" },
+    "closed_door":      { "base": 0.005, "cost": 150, "costScale": 1.22, "ranksPerRealm": 12, "capPctPerRealm": 0.08, "type": "offline_pct" },
 
     "celestial_resonance": { "oneTime": true, "type": "qps_pct", "value": 0.12, "cost": 2500000, "unlockAtCycle": "spirit", "icon": "celestialresonance.png" },
     "void_convergence":    { "oneTime": true, "type": "qpc_pct", "value": 0.12, "cost": 4000000, "unlockAtCycle": "spirit", "icon": "voidconvergence.png" }
@@ -15,14 +15,14 @@
     "qpcFlatPerRank": 0.25
   },
   "stageRequirement": {
-    "realmBase": 80,
-    "realmBaseScale": 5,
-    "stageScale": 1.42
+    "realmBase": 55,
+    "realmBaseScale": 4,
+    "stageScale": 1.181
   },
   "progression": {
     "qpcBaseStart": 1,
     "qpsBaseStart": 0,
-    "realmAdvanceReward": { "qpcBaseAdd": 2.5, "qpsBaseAdd": 1.8 }
+    "realmAdvanceReward": { "qpcBaseAdd": 3.1, "qpsBaseAdd": 1.15 }
   },
   "reincarnation": {
     "karmaPerUnit": 0.12,

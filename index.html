@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Xianxia Idle V1.2.0</title>
+  <title>Xianxia Idle V2.0</title>
   <link rel="stylesheet" href="css/style.css" />
   <style>
   html, body {
@@ -28,8 +28,7 @@
       <button id="settingsBtn" class="settings-btn btn" aria-haspopup="true" aria-expanded="false">Settings</button>
     </div>
   </header>
-  
-  <!-- Settings Panel -->
+
   <div id="settingsPanel" class="settings-panel" aria-hidden="true">
     <h3 style="margin:0 0 8px 0;">Audio</h3>
     <div class="settings-row">
@@ -43,9 +42,22 @@
     <div class="settings-note" id="trackInfo">Track 1/7</div>
     <div class="settings-note" id="autoplayNote" style="display:none;">Autoplay blocked — unmute or interact to start.</div>
 
-    <hr style="border-color:#1e2631; margin: 15px 0;"/>
-    
+    <hr style="border-color:#1e2631; margin: 12px 0;" />
+    <h3 style="margin:0 0 8px 0;">Save</h3>
     <div class="settings-row">
+      <span>Current Slot</span>
+      <strong id="currentSaveSlot">Slot 1</strong>
+    </div>
+    <button id="saveBtn" class="btn">Save <span class="kbd">Ctrl+S</span></button>
+    <div class="settings-note" id="lastSave" style="margin-top: 8px;">Last Save: -</div>
+    <textarea id="ioArea" placeholder="Paste your save code here or copy the export"></textarea>
+    <div class="settings-actions">
+      <button id="exportBtn" class="btn">Export</button>
+      <button id="importBtn" class="btn">Import</button>
+      <button id="resetBtn" class="btn danger">Reset Slot</button>
+    </div>
+
+    <div class="settings-row" style="margin-top:12px; border-top:1px solid #1e2631; padding-top:12px;">
       <label style="color:#7ee787;">Dev Mode</label>
       <button class="btn" onclick="var h = document.getElementById('hiddenHacks'); h.style.display = (h.style.display === 'none') ? 'flex' : 'none';">
         Show/Hide
@@ -59,15 +71,15 @@
         ⚡ Add 1e50 Qi
       </button>
 
-      <button onclick="S.qi = 0; renderAll();" class="btn" style="border:1px solid #ffa500; color:#ffa500;">
+       <button onclick="S.qi = 0; renderAll();" class="btn" style="border:1px solid #ffa500; color:#ffa500;">
         🗑️ Empty Qi Storage
       </button>
-      
+
     </div>
+    <button id="mainMenuBtn" class="btn" style="margin-top: 12px;">Main Menu</button>
+    <div class="settings-note" style="margin-top: 8px;">Version: <span id="ver"></span></div>
   </div>
 
-
-  <!-- Achievements Panel -->
   <div id="achievementsPanel" class="achievements-panel" aria-hidden="true">
     <div class="achievements-header">
       <h3 class="achievements-title">🏆 Achievements</h3>
@@ -85,9 +97,9 @@
       <button class="filter-btn impossible-filter" data-filter="Impossible">Impossible</button>
     </div>
     <div id="achievementsList" class="achievements-list">
-      <!-- Achievements will be populated by JavaScript -->
-    </div>
+      </div>
   </div>
+
   <main class="wrap">
     <section class="card">
       <h2>Cultivator State</h2>
@@ -107,22 +119,18 @@
         <div class="stat"><span>Karma</span><span id="karmaVal">0</span></div>
         <div class="stat"><span>Reincarnation bonus</span><span id="reincBonus">1.00×</span></div>
         <div class="stat"><span>Reincarnations</span><span id="reincTimes">0</span></div>
-        <!-- OLD: Removed duplicate transcendenceStatus div - now using transcendencePanel card below -->
         <div class="small muted" style="margin-top: 4px; text-align: center;">Each reincarnation permanently increases your cultivation efficiency.</div>
-        
-        <!-- Transcendence Panel -->
+
         <hr style="border-color:#1e2631; margin: 12px 0 8px 0;"/>
         <section id="transcendencePanel" style="margin: 8px 0;">
-          <!-- Filled by renderTranscendencePanel() -->
-        </section>
-        
-        <!-- Time Speed Control -->
+          </section>
+
         <hr style="border-color:#1e2631; margin: 12px 0 8px 0;"/>
         <div class="stat">
           <span>⏱ Time Flow</span>
           <div id="speedButtons" class="speed-buttons"></div>
         </div>
-        
+
         <hr style="border-color:#1e2631"/>
         <div>
           <div class="stat"><span>Realm</span><span id="realmName"></span></div>
@@ -135,6 +143,7 @@
         </div>
       </div>
     </section>
+
     <section class="card">
       <h2>Cultivation Zone</h2>
       <div class="body">
@@ -152,33 +161,32 @@
       <div class="body" id="shop"></div>
     </section>
   </main>
+  </div>
 
-  <section class="card" style="margin:0 16px 16px 16px">
-    <h2>Export / Import</h2>
-    <div class="body">
-      <textarea id="ioArea" placeholder="Paste your save code here or copy the export"></textarea>
-      <div class="actions-bar">
-        <button id="saveBtn" class="btn">Save <span class="kbd">Ctrl+S</span></button>
-        <div class="muted small" id="lastSave" style="margin-top: 10px; text-align: center;">Last Save: —</div>
-        <button id="exportBtn" class="btn">Export</button>
-        <button id="importBtn" class="btn">Import</button>
-        <button id="resetBtn" class="btn danger">Reset</button>
+  <div id="mainMenuOverlay" class="main-menu-overlay" aria-hidden="false">
+    <div class="main-menu-panel">
+      <h2 class="main-menu-title">Xianxia Idle</h2>
+      <p class="main-menu-subtitle">Choose a save slot, then start a new run or load an existing one.</p>
+      <div id="menuSlots" class="menu-slots hidden" aria-hidden="true">
+        <button class="menu-slot-btn selected" data-slot="1" type="button"></button>
+        <button class="menu-slot-btn" data-slot="2" type="button"></button>
+        <button class="menu-slot-btn" data-slot="3" type="button"></button>
       </div>
-      <div class="footer">
-        <span class="muted small">Data is automatically saved every 15s in this browser</span>
-        <span class="muted small">version: <span id="ver"></span></span>
+      <div class="main-menu-actions">
+        <button id="newGameBtn" class="btn">New Game</button>
+        <button id="loadGameBtn" class="btn primary">Load Save</button>
+        <button id="menuMusicBtn" class="btn" type="button">Music: On</button>
       </div>
     </div>
-  </section>
-    </div>
-  
-  <!-- Background Music -->
+  </div>
+
+  <div id="videoOverlay" class="video-overlay hidden" aria-hidden="true">
+    <video id="gameCutscene" class="game-cutscene" preload="metadata" playsinline></video>
+    <button id="skipVideoBtn" class="btn video-skip-btn" type="button">Skip Video</button>
+  </div>
+
   <audio id="bgm" preload="auto"></audio>
-  
+
   <script defer src="js/main.js"></script>
-
-
-
-
 </body>
 </html>
