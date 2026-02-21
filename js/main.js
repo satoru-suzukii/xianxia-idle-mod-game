@@ -1,4 +1,4 @@
-/*
+﻿/*
  * XIANXIA IDLE V1.2.0
  * 
  * TIME SPEED SYSTEM: Affects ONLY Lifespan Aging
@@ -50,7 +50,56 @@
 
 const VERSION = '1.2.0';
 const SAVE_KEY = 'xianxiaIdleSaveV1';
+const ACHIEVEMENTS_KEY = 'xianxiaAchievementsV1';
+const SAVE_SLOT_COUNT = 3;
+const ACTIVE_SLOT_KEY = 'xianxiaIdleActiveSlotV1';
+const MAX_RANKS_PER_REALM = 12;
 let REALM_SKILL_BONUS = 0.20; // default +20% per realm
+let initComplete = false; // Guard: prevents saving default state before load() runs
+let gameActive = false; // Pauses gameplay when main menu is open
+let menuLoadMode = false; // Main menu load flow state (slots hidden until Load Save is pressed)
+
+function normalizeSlot(slot) {
+  const n = Math.floor(Number(slot));
+  if (!Number.isFinite(n) || n < 1 || n > SAVE_SLOT_COUNT) return 1;
+  return n;
+}
+
+let activeSlot = normalizeSlot(localStorage.getItem(ACTIVE_SLOT_KEY) || 1);
+let selectedMenuSlot = activeSlot;
+
+function getSaveKeyForSlot(slot = activeSlot) {
+  return `${SAVE_KEY}_slot${normalizeSlot(slot)}`;
+}
+
+function getAchievementsKeyForSlot(slot = activeSlot) {
+  return `${ACHIEVEMENTS_KEY}_slot${normalizeSlot(slot)}`;
+}
+
+function setActiveSlot(slot) {
+  activeSlot = normalizeSlot(slot);
+  localStorage.setItem(ACTIVE_SLOT_KEY, String(activeSlot));
+}
+
+function migrateLegacyStorageToSlots() {
+  try {
+    const legacySave = localStorage.getItem(SAVE_KEY);
+    if (legacySave && !localStorage.getItem(getSaveKeyForSlot(1))) {
+      localStorage.setItem(getSaveKeyForSlot(1), legacySave);
+    }
+    if (legacySave) localStorage.removeItem(SAVE_KEY);
+
+    const legacyAchievements = localStorage.getItem(ACHIEVEMENTS_KEY);
+    if (legacyAchievements && !localStorage.getItem(getAchievementsKeyForSlot(1))) {
+      localStorage.setItem(getAchievementsKeyForSlot(1), legacyAchievements);
+    }
+    if (legacyAchievements) localStorage.removeItem(ACHIEVEMENTS_KEY);
+  } catch (e) {
+    console.warn('Legacy save migration failed:', e);
+  }
+}
+
+migrateLegacyStorageToSlots();
 
 // Debug mode - enable with ?dev=1 in URL
 const DEBUG_MODE = new URLSearchParams(window.location.search).get('dev') === '1';
@@ -156,21 +205,21 @@ function debugAssertReincarnationRate() {
 // - Better karma gains for meaningful reincarnations
 let BAL = {
   skills: {
-    breath_control:   { base: 1.20, cost: 20,  costScale: 1.22 },
-    meridian_flow:    { base: 2.00, cost: 45,  costScale: 1.26 },
-    lotus_meditation: { base: 0.25, cost: 140, costScale: 1.35 },
-    dantian_temps:    { base: 0.18, cost: 110, costScale: 1.33 },
-    closed_door:      { base: 0.35, cost: 150, costScale: 1.38 }
+    breath_control:   { base: 1.20, cost: 20,  costScale: 1.18, ranksPerRealm: 12, type: 'qps_flat' },
+    meridian_flow:    { base: 2.00, cost: 45,  costScale: 1.18, ranksPerRealm: 12, type: 'qpc_flat' },
+    lotus_meditation: { base: 0.008, cost: 140, costScale: 1.20, ranksPerRealm: 12, capPctPerRealm: 0.12, type: 'qps_pct' },
+    dantian_temps:    { base: 0.008, cost: 110, costScale: 1.20, ranksPerRealm: 12, capPctPerRealm: 0.12, type: 'qpc_pct' },
+    closed_door:      { base: 0.005, cost: 150, costScale: 1.22, ranksPerRealm: 12, capPctPerRealm: 0.08, type: 'offline_pct' }
   },
   stageRequirement: {
-    realmBase: 80,
-    realmBaseScale: 5,
-    stageScale: 1.42
+    realmBase: 55,
+    realmBaseScale: 4,
+    stageScale: 1.181
   },
   progression: {
     qpcBaseStart: 1,
     qpsBaseStart: 0,
-    realmAdvanceReward: { qpcBaseAdd: 2.5, qpsBaseAdd: 1.8 }
+    realmAdvanceReward: { qpcBaseAdd: 3.1, qpsBaseAdd: 1.15 }
   },
   reincarnation: {
     karmaPerUnit: 0.12,
@@ -183,7 +232,7 @@ let BAL = {
   },
   lifespan: {
     realmMaxLifespan: [50, 100, 200, 500, 1000, 3000, 10000, 50000, 100000, 500000, null], // years per realm, null = infinite
-    yearsPerSecond: 0.5 // aging rate: 0.5 years per second (validator will clamp to [0.005, 0.1])
+    yearsPerSecond: 0.5 // aging rate: 0.5 years per second (validator will clamp to [0.005, 5.0])
   },
   timeSpeed: {
     speeds: [0, 0.5, 1, 2, 4, 6, 8, 10], // available time multipliers
@@ -291,7 +340,7 @@ function validateBalanceConfig(BAL, realms) {
       BAL.lifespan.realmMaxLifespan[realmCount - 1] = null;
     }
     
-    // Validate yearsPerSecond is within safe range [0.005, 0.1]
+    // Validate yearsPerSecond is within safe range [0.005, 5.0]
     let yps = BAL.lifespan.yearsPerSecond;
     if (typeof yps !== 'number' || !isFinite(yps)) {
       warn(`lifespan: yearsPerSecond invalid (${yps}). Resetting to 0.5.`);
@@ -299,9 +348,9 @@ function validateBalanceConfig(BAL, realms) {
     } else if (yps < 0.005) {
       warn(`lifespan: yearsPerSecond too low (${yps}). Clamping to 0.005.`);
       BAL.lifespan.yearsPerSecond = 0.005;
-    } else if (yps > 0.1) {
-      warn(`lifespan: yearsPerSecond too high (${yps}). Clamping to 0.1.`);
-      BAL.lifespan.yearsPerSecond = 0.1;
+    } else if (yps > 5.0) {
+      warn(`lifespan: yearsPerSecond too high (${yps}). Clamping to 5.0.`);
+      BAL.lifespan.yearsPerSecond = 5.0;
     }
   }
 
@@ -445,9 +494,11 @@ function validateBalanceConfig(BAL, realms) {
     Object.keys(BAL.skills).forEach(skillId => {
       const skill = BAL.skills[skillId];
       
-      if (typeof skill.base !== 'number' || skill.base < 0 || !isFinite(skill.base)) {
-        warn(`skills.${skillId}: invalid base (${skill.base}). Resetting to 1.`);
-        skill.base = 1;
+      if (!skill.oneTime) {
+        if (typeof skill.base !== 'number' || skill.base < 0 || !isFinite(skill.base)) {
+          warn(`skills.${skillId}: invalid base (${skill.base}). Resetting to 1.`);
+          skill.base = 1;
+        }
       }
       
       if (typeof skill.cost !== 'number' || skill.cost <= 0 || !isFinite(skill.cost)) {
@@ -455,9 +506,23 @@ function validateBalanceConfig(BAL, realms) {
         skill.cost = 50;
       }
       
-      if (typeof skill.costScale !== 'number' || skill.costScale <= 1 || !isFinite(skill.costScale)) {
-        warn(`skills.${skillId}: invalid costScale (${skill.costScale}). Resetting to 1.3.`);
-        skill.costScale = 1.3;
+      if (!skill.oneTime) {
+        if (typeof skill.costScale !== 'number' || skill.costScale <= 1 || !isFinite(skill.costScale)) {
+          warn(`skills.${skillId}: invalid costScale (${skill.costScale}). Resetting to 1.3.`);
+          skill.costScale = 1.3;
+        }
+        
+        const rawRanks = Number(skill.ranksPerRealm);
+        if (!Number.isFinite(rawRanks) || rawRanks < 1) {
+          warn(`skills.${skillId}: invalid ranksPerRealm (${skill.ranksPerRealm}). Resetting to ${MAX_RANKS_PER_REALM}.`);
+          skill.ranksPerRealm = MAX_RANKS_PER_REALM;
+        } else {
+          const capped = Math.min(MAX_RANKS_PER_REALM, Math.max(1, Math.floor(rawRanks)));
+          if (capped !== rawRanks) {
+            warn(`skills.${skillId}: ranksPerRealm (${rawRanks}) exceeds cap ${MAX_RANKS_PER_REALM}. Clamping.`);
+          }
+          skill.ranksPerRealm = capped;
+        }
       }
     });
   }
@@ -509,11 +574,11 @@ const realms = [
   { id:'golden_core', name:'Golden Core' },
   { id:'nascent_soul', name:'Nascent Soul' },
   { id:'spirit_transformation', name:'Spirit Transformation' },
-  { id:'void_refining', name:'Ascension' },
-  { id:'body_integration', name:'Profound Immortal' },
-  { id:'mahayana', name:'Immortal Venerable' },
-  { id:'tribulation_transcendence', name:'Immortal Emperor' },
-  { id:'true_immortal', name:'God Realm' },
+  { id:'void_refining', name:'Void Refining' },
+  { id:'body_integration', name:'Body Integration' },
+  { id:'mahayana', name:'Mahayana' },
+  { id:'tribulation_transcendence', name:'Tribulation Transcendence' },
+  { id:'true_immortal', name:'True Immortal' },
 ];
 
 // ============= REALM ID MAPPING SYSTEM =============
@@ -529,6 +594,18 @@ const REALM_INDEX = Object.fromEntries(REALM_IDS.map((id, i) => [id, i]));
  * @returns {number} Realm index, or -1 if not found
  */
 const idx = (id) => REALM_INDEX[id] ?? -1;
+
+function enforceQiRefiningQpsBaseline(state = S) {
+  if (!state) return;
+  const qiRefiningIndex = idx('qi_refining');
+  if (state.realmIndex === qiRefiningIndex) {
+    state.qpsBase = 1;
+    return;
+  }
+  if (state.realmIndex > qiRefiningIndex && (!Number.isFinite(state.qpsBase) || state.qpsBase < 1)) {
+    state.qpsBase = 1;
+  }
+}
 
 /**
  * Get realm by index - safe accessor
@@ -790,13 +867,14 @@ function assertSkillScalingFinite() {
   }
   
   // Test totalQPC and totalQPS at various realms
+  const savedSkills = JSON.parse(JSON.stringify(S.skills)); // Deep copy to restore later
   for (const realm of testRealms) {
     const oldRealm = S.realmIndex;
     S.realmIndex = realm;
     
-    // Give skills some levels for testing
+    // Give skills some levels for testing (rank-based format)
     testSkills.forEach(sk => {
-      S.skills[sk.id] = 100;
+      S.skills[sk.id] = { total: 100, perRealm: { [realm]: 100 } };
     });
     
     const qpc = totalQPC();
@@ -817,6 +895,7 @@ function assertSkillScalingFinite() {
     
     S.realmIndex = oldRealm;
   }
+  S.skills = savedSkills; // Restore original skills
   
   if (errors.length > 0) {
     console.error('[Skill Scaling] FINITE VALUE VIOLATIONS:', errors);
@@ -1271,7 +1350,7 @@ const defaultState = () => ({
   skills: {},
   reinc: { times: 0, karma: 0, lifetimeQi: 0 },
   lifespan: { current: BAL.lifespan?.realmMaxLifespan?.[0] || 100, max: BAL.lifespan?.realmMaxLifespan?.[0] || 100 },
-  ageYears: 0, // Current age in years (increases over time)
+  age: 0, // Current age in years (increases over time)
   isDead: false, // Death state flag
   timeSpeed: { current: 1, paused: false },
   currentCycle: 'mortal',
@@ -1408,8 +1487,10 @@ function triggerCycleTransition() {
   const isSpirit = S.currentCycle === 'spirit';
   
   if (isSpirit) {
-    // End of Spirit Cycle - Final ascension
-    showCycleCompletionModal('final');
+    // End of Spirit Cycle - play final cutscene, then final ascension modal.
+    queueCutsceneSequence(['final']).then(() => {
+      showCycleCompletionModal('final');
+    });
   } else {
     // End of Mortal Cycle - Transition to Spirit
     showCycleCompletionModal('mortal-to-spirit');
@@ -1418,9 +1499,8 @@ function triggerCycleTransition() {
 
 function showCycleCompletionModal(type) {
   const karmaGain = computeKarmaGain();
-  const baseYearsPerSecond = BAL.lifespan?.yearsPerSecond || 1.0;
-  const yearsLived = ((S.lifespan.max - S.lifespan.current) / baseYearsPerSecond / 60); // Rough estimate
-  const yearsLivedFormatted = fmt(yearsLived);
+  const yearsLived = S.age || 0;
+  const yearsLivedFormatted = formatYears(yearsLived);
   
   let title, message, onConfirm;
   
@@ -1438,7 +1518,8 @@ function showCycleCompletionModal(type) {
       <br><em>Choose to reincarnate and begin anew, or remain in eternal meditation.</em>
     `;
     onConfirm = () => {
-      doReincarnate(false);
+      // End-of-cycle reincarnation is not a voluntary reincarnation action.
+      doReincarnate({ mode: 'cycle' });
       unlockAchievement('celestial_eternity');
     };
   } else {
@@ -1455,7 +1536,8 @@ function showCycleCompletionModal(type) {
       <br><em>The heavens tremble as your <span class="cycle-spirit">Spirit Cycle</span> begins.</em>
     `;
     onConfirm = () => {
-      doReincarnate(false);
+      // Cycle transition reincarnation is system-forced, not voluntary.
+      doReincarnate({ mode: 'cycle' });
       unlockAchievement('end_mortal_cycle');
       unlockAchievement('spirit_ascendant');
     };
@@ -1688,7 +1770,7 @@ function effectiveSkillBase(id) {
   return Math.min(1e150, scaled);
 }
 
-let S = load() || defaultState();
+let S = defaultState();   // Populated properly inside init() after BAL is loaded
 
 /**
  * Calculate total Qi per click with hybrid skill system
@@ -2048,10 +2130,8 @@ function buySkill(skillId, requestedQty = 1) {
   
   // Track for achievements
   achievementState.totalPurchases += affordable;
-  saveAchievementState();
   
   // Update UI
-  save();
   renderAll();
   
   // Show feedback if bought less than requested
@@ -2098,22 +2178,21 @@ function getLastBulkMultiplier() {
  * Set the bulk multiplier for session
  */
 function setLastBulkMultiplier(mult) {
-  lastBulkMultiplier = mult;
+  const safeMult = Math.max(1, Math.min(MAX_RANKS_PER_REALM, Math.floor(Number(mult) || 1)));
+  lastBulkMultiplier = safeMult;
 }
 
 // ============= REALM-SCALED SKILL SYSTEM =============
+// NOTE: Primary skillRealmScale() and effectiveSkillBase() are defined above (lines ~1641/~1686)
+// using SKILL_SCALING constants with karma/cycle multipliers. Do NOT redefine them here.
 
 /**
- * Calculate realm-based scaling for skill effectiveness
- * Bounded exponential that preserves skill type (additive stays additive, % stays %)
- * @param {number} realmIndex - Current realm index (0-10)
- * @returns {number} Scaling multiplier (1.0 to 3.0)
+ * Get the skill type/kind from balance.json
+ * @param {string} id - Skill ID
+ * @returns {string} Skill type (e.g., 'qps_flat', 'qpc_flat', 'qps_pct', 'qpc_pct', 'offline_pct')
  */
-function skillRealmScale(realmIndex) {
-  const MAX_BONUS = 2.0;   // Cap at +200% (i.e., ×3 total)
-  const K = 0.22;          // Curve steepness
-  // At realm 0: 1.0, at realm 5: ~1.66, at realm 10: ~2.86 → capped to 3.0
-  return Math.min(1 + MAX_BONUS, 1 + MAX_BONUS * (1 - Math.exp(-K * realmIndex)));
+function getKind(id) {
+  return BAL.skills[id]?.type || 'qps_flat';
 }
 
 /**
@@ -2152,17 +2231,8 @@ function percentWithDR(perLevelPct, L) {
   return Math.min(dr, 1.5);        // Hard cap at +150%
 }
 
-/**
- * Get effective skill base scaled by current realm
- * Replaces direct BAL.skills[id].base usage in calculations
- * @param {string} id - Skill ID
- * @returns {number} Realm-scaled base effectiveness
- */
-function effectiveSkillBase(id) {
-  const base = BAL.skills[id]?.base || 0;
-  const realmMult = skillRealmScale(S.realmIndex);
-  return base * realmMult;
-}
+// effectiveSkillBase() is defined above (~line 1686) with full karma/cycle factors.
+// Do NOT redefine it here.
 
 /**
  * DEPRECATED: Determine skill tier (kept for compatibility, not used in calculations)
@@ -2318,7 +2388,6 @@ function doReincarnate(options = {}){
     // Track achievement
     unlockAchievement('break_mortal_shackles');
     achievementState.cycleTransitions = (achievementState.cycleTransitions || 0) + 1;
-    saveAchievementState();
   }
   
   // Track achievements based on mode
@@ -2331,7 +2400,6 @@ function doReincarnate(options = {}){
     if(achievementState.voluntaryReincarnations === 1) {
       unlockAchievement('first_voluntary_reincarnation');
     }
-    saveAchievementState();
   } else if (mode === 'death') {
     // Death reincarnation now handled by handleDeathReincarnate()
     // This branch shouldn't be reached anymore but kept for safety
@@ -2342,7 +2410,6 @@ function doReincarnate(options = {}){
       achievementState.forcedReincarnationCount = 0;
     }
     achievementState.forcedReincarnationCount++;
-    saveAchievementState();
   }
   
   // Reset age and lifespan properly
@@ -2370,31 +2437,43 @@ function doReincarnate(options = {}){
   }
   S.timeSpeed.paused = false;
   
-  save();
   renderAll();
   
-  // Show appropriate modal based on mode
+  // Show appropriate modal and cutscenes based on mode
   const karmaGained = gain.toFixed(2);
   const totalKarma = S.reinc.karma.toFixed(2);
-  
+
+  const showResultModal = () => {
+    if (mode === 'mandatory') {
+      showModal('🌟 Transcendence Achieved', 
+        `<span class="highlight">You have broken the shackles of mortality!</span><br><br>
+        Your soul now walks the path of the Spirit Cycle.<br><br>
+        <strong>Voluntary reincarnation is now available</strong> at Spirit Transformation Stage 1 and all higher realms.<br><br>
+        <div class="highlight">+${karmaGained} Karma gained (Total: ${totalKarma})</div>`, '🦋');
+    } else if (mode === 'death') {
+      showModal('☠️ Death and Rebirth', 
+        `<span style="color: var(--danger);">Your mortal body has withered. You failed to transcend before death.</span><br><br>
+        <strong>Reduced Karma:</strong> ${karmaGained} Karma gained (50% penalty)<br>
+        <strong>Total Karma:</strong> ${totalKarma}<br><br>
+        <em>Next time, seek voluntary reincarnation at Spirit Transformation Stage 1+ for full rewards.</em>`, '💀');
+    } else {
+      showModal('♻️ Reincarnation Complete', 
+        `The wheel of reincarnation turns, and you begin anew with greater wisdom.<br><br>
+        <div class="highlight">+${karmaGained} Karma gained (Total: ${totalKarma})</div><br>
+        Your accumulated karma will enhance your cultivation speed.`, '🔄');
+    }
+  };
+
+  let cutsceneSequence = ['born'];
   if (mode === 'mandatory') {
-    showModal('🌟 Transcendence Achieved', 
-      `<span class="highlight">You have broken the shackles of mortality!</span><br><br>
-      Your soul now walks the path of the Spirit Cycle.<br><br>
-      <strong>Voluntary reincarnation is now available</strong> at Spirit Transformation Stage 1 and all higher realms.<br><br>
-      <div class="highlight">+${karmaGained} Karma gained (Total: ${totalKarma})</div>`, '🦋');
+    cutsceneSequence = ['mandatory_reincarnation', 'born'];
+  } else if (mode === 'voluntary') {
+    cutsceneSequence = ['voluntary_reincarnation', 'born'];
   } else if (mode === 'death') {
-    showModal('☠️ Death and Rebirth', 
-      `<span style="color: var(--danger);">Your mortal body has withered. You failed to transcend before death.</span><br><br>
-      <strong>Reduced Karma:</strong> ${karmaGained} Karma gained (50% penalty)<br>
-      <strong>Total Karma:</strong> ${totalKarma}<br><br>
-      <em>Next time, seek voluntary reincarnation at Spirit Transformation Stage 1+ for full rewards.</em>`, '💀');
-  } else {
-    showModal('♻️ Reincarnation Complete', 
-      `The wheel of reincarnation turns, and you begin anew with greater wisdom.<br><br>
-      <div class="highlight">+${karmaGained} Karma gained (Total: ${totalKarma})</div><br>
-      Your accumulated karma will enhance your cultivation speed.`, '🔄');
+    cutsceneSequence = ['old_age', 'born'];
   }
+
+  queueCutsceneSequence(cutsceneSequence).then(showResultModal);
 }
 
 // Wrapper functions for specific reincarnation types
@@ -2589,6 +2668,9 @@ async function handleLifespanEnd(){
     const gain = computeDeathKarma();
     const gainFormatted = fmt(gain);
     const ageFormatted = fmtYears(currentAge);
+
+    // Play old-age death cutscene before the rebirth confirmation.
+    await queueCutsceneSequence(['old_age']);
     
     // Show single death modal and wait for user to dismiss it
     await ModalManager.alert({
@@ -2639,8 +2721,7 @@ async function performDeathReincarnation(karmaGain) {
   S.age = 0;
   S.lastTick = now();
   
-  // Initialize age and lifespan cleanly for new life
-  S.ageYears = 0;
+  // Initialize lifespan cleanly for new life
   const newMaxLifespan = getMaxLifespan(0); // Qi Refining base lifespan
   if(newMaxLifespan === null) {
     S.lifespan = { current: null, max: null };
@@ -2663,14 +2744,13 @@ async function performDeathReincarnation(karmaGain) {
     achievementState.forcedReincarnationCount = 0;
   }
   achievementState.forcedReincarnationCount++;
-  saveAchievementState();
   
   // Clear reincarnation guard
   S.lifecycle.isReincarnating = false;
   
   // Full UI refresh and save
-  save();
   renderAll();
+  queueCutsceneSequence(['born']);
   
   // NO second modal - user has already been informed
 }
@@ -2684,73 +2764,6 @@ function showDeathConfirmModal(){
 function handleDeath(){
   // Legacy function - redirect to new async implementation
   handleLifespanEnd();
-}
-
-// DEPRECATED - showDeathMessage was part of old implementation
-function showDeathMessage(){
-  const overlay = document.createElement('div');
-  overlay.style.cssText = `
-    position: fixed;
-    inset: 0;
-    background: linear-gradient(45deg, rgba(0,0,0,0.85), rgba(20,10,10,0.9));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    opacity: 0;
-    transition: opacity 0.8s ease;
-    backdrop-filter: blur(4px);
-  `;
-  
-  const message = document.createElement('div');
-  message.style.cssText = `
-    background: linear-gradient(135deg, var(--panel), #1a0f0f);
-    border: 2px solid var(--danger);
-    border-radius: 20px;
-    padding: 32px;
-    text-align: center;
-    color: var(--text);
-    max-width: 450px;
-    transform: scale(0.7) rotate(-2deg);
-    transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-    box-shadow: 0 20px 60px rgba(255, 107, 107, 0.3);
-  `;
-  
-  message.innerHTML = `
-    <div style="font-size: 3em; margin-bottom: 16px; animation: fadeInPulse 0.8s ease;">💀</div>
-    <h3 style="margin: 0 0 16px 0; color: var(--danger); font-size: 1.4em;">End of Mortal Life</h3>
-    <p style="margin: 0; color: var(--muted); line-height: 1.5;">Your mortal body has reached its end.<br>You feel your spirit leaving this realm...<br><br><em style="color: var(--accent);">Reincarnation begins.</em></p>
-  `;
-  
-  // Add keyframe animation
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes fadeInPulse {
-      0% { opacity: 0; transform: scale(0.5); }
-      50% { opacity: 0.8; transform: scale(1.2); }
-      100% { opacity: 1; transform: scale(1); }
-    }
-  `;
-  document.head.appendChild(style);
-  
-  overlay.appendChild(message);
-  document.body.appendChild(overlay);
-  
-  // Animate in
-  requestAnimationFrame(() => {
-    overlay.style.opacity = '1';
-    message.style.transform = 'scale(1) rotate(0deg)';
-  });
-  
-  // Remove after 2.5 seconds
-  setTimeout(() => {
-    overlay.style.opacity = '0';
-    message.style.transform = 'scale(0.8) rotate(1deg)';
-    setTimeout(() => {
-      overlay.remove();
-      style.remove();
-    }, 800);
-  }, 2500);
 }
 
 // ============= TIME SPEED SYSTEM =============
@@ -2905,7 +2918,6 @@ function setTimeSpeed(speed){
     S.timeSpeed.current = speed;
   }
   
-  save();
   renderTimeSpeed();
 }
 
@@ -2965,6 +2977,11 @@ function doBreakthrough(){
       S.realmIndex++; S.stage = 1;
       S.qpcBase += BAL.progression.realmAdvanceReward.qpcBaseAdd; 
       S.qpsBase += BAL.progression.realmAdvanceReward.qpsBaseAdd;
+      if (S.realmIndex === idx('qi_refining')) {
+        S.qpsBase = 1;
+      } else {
+        enforceQiRefiningQpsBaseline();
+      }
       updateLifespanOnRealmAdvance(); // restore lifespan on realm advancement
       updateCurrentCycle(); // Update cycle when moving to new realm
       checkAndUnlockSpeeds(); // Check for new time-speed unlocks
@@ -3018,6 +3035,8 @@ function tick(rawDt, speed){
 }
 
 function onClick(){
+  if (!gameActive) return;
+
   // Guard: no clicking when paused (0× speed)
   const timeSpeed = getTimeSpeed();
   if(timeSpeed === 0) return;
@@ -3032,7 +3051,6 @@ function onClick(){
   
   // Track clicks for achievements
   achievementState.totalClicks++;
-  saveAchievementState();
   
   flashNumber('+'+fmt(gain));
   
@@ -3066,8 +3084,6 @@ function flashNumber(text){
 }
 
 // ============= ACHIEVEMENTS SYSTEM =============
-
-const ACHIEVEMENTS_KEY = 'xianxiaAchievementsV1';
 
 const ACHIEVEMENTS = [
   // Progression Achievements
@@ -3244,7 +3260,7 @@ const ACHIEVEMENTS = [
     icon: "📚",
     category: "Skills",
     hiddenUntilUnlocked: false,
-    requirement: ({ skills }) => Object.values(skills).some(lvl => lvl >= 10)
+    requirement: ({ skills }) => Object.values(skills).some(v => (typeof v === 'object' ? (v.total || 0) : v) >= 10)
   },
   {
     id: "shopper_100_purchases",
@@ -3424,7 +3440,7 @@ const ACHIEVEMENTS = [
     icon: "👑",
     category: "Impossible",
     hiddenUntilUnlocked: true,
-    requirement: ({ skills }) => Object.keys(skills).length >= 5 && Object.values(skills).every(v => v >= 999)
+    requirement: ({ skills }) => Object.keys(skills).length >= 5 && Object.values(skills).every(v => (typeof v === 'object' ? (v.total || 0) : v) >= 999)
   },
   {
     id: "ultimate_patience",
@@ -3447,30 +3463,37 @@ const UNLOCKS = {
 };
 
 // Achievement state management
-let achievementState = loadAchievementState();
+let achievementState = loadAchievementState(activeSlot);
 
-function loadAchievementState() {
+function createDefaultAchievementState() {
+  return {
+    unlocked: {},
+    totalClicks: 0,
+    totalPurchases: 0,
+    achievementsPanelOpened: false,
+    cycleTransitions: 0,
+    spiritCycleComplete: false,
+    voluntaryReincarnations: 0,
+    forcedReincarnationCount: 0
+  };
+}
+
+function loadAchievementState(slot = activeSlot) {
   try {
-    const saved = localStorage.getItem(ACHIEVEMENTS_KEY);
+    const saved = localStorage.getItem(getAchievementsKeyForSlot(slot));
     if (saved) {
-      return JSON.parse(saved);
+      const data = JSON.parse(saved);
+      return { ...createDefaultAchievementState(), ...data };
     }
   } catch (e) {
     console.warn('Failed to load achievement state:', e);
   }
-  return { 
-    unlocked: {}, 
-    totalClicks: 0, 
-    totalPurchases: 0, 
-    achievementsPanelOpened: false,
-    cycleTransitions: 0,
-    spiritCycleComplete: false
-  };
+  return createDefaultAchievementState();
 }
 
-function saveAchievementState() {
+function saveAchievementState(slot = activeSlot) {
   try {
-    localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(achievementState));
+    localStorage.setItem(getAchievementsKeyForSlot(slot), JSON.stringify(achievementState));
   } catch (e) {
     console.warn('Failed to save achievement state:', e);
   }
@@ -3493,7 +3516,6 @@ function unlockAchievement(id) {
     icon: achievement.icon
   };
   
-  saveAchievementState();
   showAchievementToast(achievement);
   showAchievementModal(achievement);
   updateAchievementsBadge();
@@ -3514,7 +3536,8 @@ function checkAchievements(context = {}) {
     karma: S.reinc.karma,
     currentCycle: S.currentCycle,
     lifespanPercent: S.lifespan.max > 0 ? (S.lifespan.current / S.lifespan.max) * 100 : 100,
-    ageYears: S.ageYears || 0,
+    ageYears: S.age || 0,
+    yearsAlive: S.age || 0,
     isCleanRun: S.life?.isCleanRun || false,
     totalClicks: achievementState.totalClicks,
     totalPurchases: achievementState.totalPurchases,
@@ -3726,11 +3749,15 @@ const ModalManager = {
     
     const data = this._queue.shift();
     
-    // Pause game time when modal opens
-    if (!S.timeSpeed?.paused) {
+    // Pause game time when modal opens (only capture if not already paused by another modal)
+    if (!S.timeSpeed?.paused && this._previousTimeSpeed === null) {
       this._previousTimeSpeed = S.timeSpeed?.current || 1;
+      this._wasPausedBeforeModal = false;
       S.timeSpeed = S.timeSpeed || {};
       S.timeSpeed.paused = true;
+    } else if (S.timeSpeed?.paused && this._previousTimeSpeed === null) {
+      // Player was manually paused before modal — don't restore speed on close
+      this._wasPausedBeforeModal = true;
     }
     
     // Create modal DOM
@@ -3833,13 +3860,18 @@ const ModalManager = {
       }
     }, 300);
     
-    // Restore previous time speed if no more modals
-    if (this._queue.length === 0 && this._previousTimeSpeed !== null) {
+    // Restore previous time speed if no more modals and player wasn't already paused
+    if (this._queue.length === 0 && this._previousTimeSpeed !== null && !this._wasPausedBeforeModal) {
       if (S.timeSpeed) {
         S.timeSpeed.paused = false;
         S.timeSpeed.current = this._previousTimeSpeed;
       }
       this._previousTimeSpeed = null;
+      this._wasPausedBeforeModal = false;
+    } else if (this._queue.length === 0) {
+      // Was paused before modal — keep it paused, just clear tracking
+      this._previousTimeSpeed = null;
+      this._wasPausedBeforeModal = false;
     }
     
     this._currentOverlay = null;
@@ -3867,9 +3899,6 @@ const ModalManager = {
 };
 
 // Legacy wrapper functions for compatibility
-let modalQueue = [];
-let isModalActive = false;
-
 function showModal(title, message, icon = '') {
   ModalManager.alert({ title, body: message, icon });
 }
@@ -3897,36 +3926,21 @@ function closeAllModals() {
 // ============= OFFLINE PROGRESS & SESSION MANAGEMENT =============
 
 /**
- * Saves a session snapshot when the tab goes to background or closes.
- * This minimal snapshot allows computing reliable offline progress on resume.
+ * Updates in-memory session snapshot metadata.
+ * This is persisted only on manual save.
  */
 function saveSessionSnapshot() {
-  if (!S) return;
+  if (!S || !initComplete || !gameActive) return;
   
   S.session = S.session || {};
-  S.session.lastTs = Date.now();                          // When we left (ms)
-  S.session.lastSpeed = S.timeSpeed?.current || 0;        // Current time speed (0 = paused)
-  S.session.lastRealmIndex = S.realmIndex;                // For analytics/debugging
-  S.session.lastQi = S.qi;                                // For debugging
-  
-  // Save to localStorage immediately
-  try {
-    S.version = VERSION;
-    localStorage.setItem(SAVE_KEY, JSON.stringify(S));
-  } catch (e) {
-    console.error('Failed to save session snapshot:', e);
-  }
+  S.session.lastTs = Date.now();
+  S.session.lastSpeed = getTimeSpeed();
+  S.session.lastRealmIndex = S.realmIndex;
+  S.session.lastQi = S.qi;
 }
 
-/**
- * Format years for display (e.g., "123.45" → "123.45 years")
- */
-function formatYears(years) {
-  if (years < 1) {
-    return `${(years * 365).toFixed(1)} days`;
-  }
-  return `${years.toFixed(2)} years`;
-}
+// formatYears() is defined above (~line 1225) with full withUnit support.
+// Do NOT redefine it here.
 
 /**
  * Centralized lifespan gate check. Call this after any time advancement.
@@ -4119,187 +4133,196 @@ cultivatorEl.addEventListener('keydown', (e)=>{
 
 
 function save(){
-  S.version = VERSION;
-  S.lastSave = now();
-  localStorage.setItem(SAVE_KEY, JSON.stringify(S));
-  updateLastSave();
+  if (!initComplete || !gameActive || !activeSlot) return false;
+  try {
+    saveSessionSnapshot();
+    S.version = VERSION;
+    S.lastSave = now();
+    localStorage.setItem(getSaveKeyForSlot(), JSON.stringify(S));
+    saveAchievementState();
+    updateLastSave();
+    refreshMainMenuSlots();
+    return true;
+  } catch (e) {
+    console.error('Failed to save game state:', e);
+    return false;
+  }
 }
 
-function load(){
+/**
+ * Shared state migration - ensures all required fields exist with safe defaults.
+ * Called from both load() and importSave() to eliminate code duplication.
+ * @param {Object} data - Raw save data object (mutated in place)
+ */
+function migrateState(data) {
+  if(!data.version) data.version = '0.0.0';
+  
+  // Migrate old saves: ensure reinc exists (backward compatibility)
+  if(!data.reinc) data.reinc = { times: 0, karma: 0, lifetimeQi: 0 };
+  // Migrate old saves: ensure lifespan exists
+  if(!data.lifespan) {
+    const realmIndex = Math.min(data.realmIndex || 0, realms.length - 1);
+    const maxLifespan = BAL.lifespan?.realmMaxLifespan?.[realmIndex];
+    if(maxLifespan === null) {
+      data.lifespan = { current: null, max: null };
+    } else {
+      const lifespan = maxLifespan || 100;
+      data.lifespan = { current: lifespan, max: lifespan };
+    }
+  }
+  // Migrate old saves: ensure timeSpeed exists
+  if(!data.timeSpeed) data.timeSpeed = { current: 1, paused: false };
+  // Migrate old saves: ensure flags exists with all new properties
+  if(!data.flags) {
+    data.flags = { 
+      unlockedBeyondSpirit: false,
+      hasUnlockedSpiritCycle: false,
+      hasCompletedMandatoryST10: false,
+      canManualReincarnate: false
+    };
+  } else {
+    if(data.flags.hasUnlockedSpiritCycle === undefined) data.flags.hasUnlockedSpiritCycle = false;
+    if(data.flags.hasCompletedMandatoryST10 === undefined) data.flags.hasCompletedMandatoryST10 = false;
+    if(data.flags.canManualReincarnate === undefined) data.flags.canManualReincarnate = false;
+  }
+  // Migrate old saves: ensure lifecycle exists with all properties
+  if(!data.lifecycle) {
+    data.lifecycle = { isReincarnating: false, lastDeathAt: 0, lastReincarnateAt: 0 };
+  } else {
+    if(data.lifecycle.lastReincarnateAt === undefined) data.lifecycle.lastReincarnateAt = 0;
+  }
+  
+  // Migrate old saves: ensure stats exists
+  if(!data.stats) {
+    data.stats = { deaths: 0 };
+  } else {
+    if(data.stats.deaths === undefined) data.stats.deaths = 0;
+  }
+  
+  // Migrate old saves: ensure meta exists with unlockedSpeeds
+  if(!data.meta) {
+    data.meta = { unlockedSpeeds: [0, 0.25, 0.5, 1] };
+  } else {
+    if(!Array.isArray(data.meta.unlockedSpeeds)) {
+      data.meta.unlockedSpeeds = [0, 0.25, 0.5, 1];
+    } else {
+      const baseSpeedsForMigration = [0, 0.25, 0.5, 1];
+      baseSpeedsForMigration.forEach(speed => {
+        if (!data.meta.unlockedSpeeds.includes(speed)) {
+          data.meta.unlockedSpeeds.push(speed);
+        }
+      });
+    }
+  }
+  
+  // Validate current speed is available, fallback to 1× if not
+  if(data.timeSpeed && data.timeSpeed.current !== 0) {
+    const availableSpeeds = data.meta?.unlockedSpeeds || [0, 0.25, 0.5, 1];
+    if(!availableSpeeds.includes(data.timeSpeed.current)) {
+      data.timeSpeed.current = 1;
+      data.timeSpeed.paused = false;
+    }
+  }
+  
+  // Migrate ageYears → age for consistency
+  if(data.age === undefined) {
+    if(data.ageYears !== undefined) {
+      data.age = safeNum(data.ageYears, 0);
+      delete data.ageYears;
+    } else {
+      if(data.lifespan && data.lifespan.max !== null && data.lifespan.current !== null) {
+        data.age = Math.max(0, data.lifespan.max - data.lifespan.current);
+      } else {
+        data.age = 0;
+      }
+    }
+  }
+  
+  // Ensure lifespanHandled latch flag exists
+  if(!data.flags) data.flags = {};
+  if(data.flags.lifespanHandled === undefined) {
+    data.flags.lifespanHandled = false;
+  }
+  
+  if(data.isDead === undefined) data.isDead = false;
+  if(!data.life) {
+    data.life = { isCleanRun: true };
+  } else {
+    if(data.life.isCleanRun === undefined) data.life.isCleanRun = true;
+  }
+  
+  // ============= HYBRID SKILL SYSTEM MIGRATION =============
+  if(!data.migratedToRankSystem) {
+    if(DEBUG_MODE) console.log('[Migration] Converting skills to rank-based system...');
+    
+    if(data.skills) {
+      const currentRealm = data.realmIndex || 0;
+      const newSkills = {};
+      
+      for(const [skillId, oldValue] of Object.entries(data.skills)) {
+        const sk = getSkillCatalog().find(s => s.id === skillId);
+        if(!sk) continue;
+        
+        if(sk.oneTime) {
+          if(oldValue) {
+            newSkills[skillId] = { purchasedOneTime: true, total: 1, perRealm: {} };
+          }
+        } else {
+          const level = typeof oldValue === 'number' ? oldValue : 0;
+          if(level > 0) {
+            newSkills[skillId] = {
+              total: level,
+              perRealm: { [currentRealm]: level }
+            };
+          }
+        }
+      }
+      
+      data.skills = newSkills;
+    } else {
+      data.skills = {};
+    }
+    
+    data.migratedToRankSystem = true;
+    if(DEBUG_MODE) console.log('[Migration] Rank system migration complete.');
+  }
+  
+  // Sanitize critical numeric values to prevent corruption issues
+  if(data.qi) data.qi = safeNum(data.qi, 0);
+  if(data.reinc && data.reinc.lifetimeQi) data.reinc.lifetimeQi = safeNum(data.reinc.lifetimeQi, 0);
+  if(data.age) data.age = safeNum(data.age, 0);
+  if(data.lifespan) {
+    if(data.lifespan.current !== null) data.lifespan.current = safeNum(data.lifespan.current, 100);
+    if(data.lifespan.max !== null) data.lifespan.max = safeNum(data.lifespan.max, 100);
+  }
+
+  enforceQiRefiningQpsBaseline(data);
+}
+
+function load(slot = activeSlot){
   try{
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(getSaveKeyForSlot(slot));
     if(!raw) return null;
     const data = JSON.parse(raw);
     if(!data.version) data.version = '0.0.0';
     
     // ============= MORTAL REALM MIGRATION =============
-    // Detect pre-Mortal-realm saves (before v1.2.0 with Mortal Realm at index 0)
-    // Flag: if save doesn't have 'migratedToMortalRealm' flag, it's an old save
     if(!data.migratedToMortalRealm) {
       if(DEBUG_MODE) console.log('[Migration] Detected pre-Mortal-realm save. Shifting realm indices...');
       
-      // Shift realm index by +1 (all realms moved up due to Mortal being inserted at 0)
-      // BUT: Don't shift if they're already at Mortal (0) - that means they started fresh
       if(data.realmIndex > 0 || data.stage > 1) {
         const oldIndex = data.realmIndex || 0;
         data.realmIndex = Math.min(oldIndex + 1, realms.length - 1);
         if(DEBUG_MODE) console.log(`[Migration] Shifted realmIndex from ${oldIndex} to ${data.realmIndex}`);
       }
       
-      // Mark as migrated
       data.migratedToMortalRealm = true;
       if(DEBUG_MODE) console.log('[Migration] Mortal Realm migration complete.');
-      
-      // Set flag to trigger achievement revalidation after S is loaded
       data._needsAchievementRevalidation = true;
     }
     
-    // Migrate old saves: ensure reinc exists (backward compatibility)
-    if(!data.reinc) data.reinc = { times: 0, karma: 0, lifetimeQi: 0 };
-    // Migrate old saves: ensure lifespan exists
-    if(!data.lifespan) {
-      const realmIndex = Math.min(data.realmIndex || 0, realms.length - 1);
-      const maxLifespan = BAL.lifespan?.realmMaxLifespan?.[realmIndex];
-      if(maxLifespan === null) {
-        // True Immortal - infinite lifespan
-        data.lifespan = { current: null, max: null };
-      } else {
-        const lifespan = maxLifespan || 100;
-        data.lifespan = { current: lifespan, max: lifespan };
-      }
-    }
-    // Migrate old saves: ensure timeSpeed exists
-    if(!data.timeSpeed) data.timeSpeed = { current: 1, paused: false };
-    // Migrate old saves: ensure flags exists with all new properties
-    if(!data.flags) {
-      data.flags = { 
-        unlockedBeyondSpirit: false,
-        hasUnlockedSpiritCycle: false,
-        hasCompletedMandatoryST10: false,
-        canManualReincarnate: false
-      };
-    } else {
-      // Ensure new flag properties exist
-      if(data.flags.hasUnlockedSpiritCycle === undefined) data.flags.hasUnlockedSpiritCycle = false;
-      if(data.flags.hasCompletedMandatoryST10 === undefined) data.flags.hasCompletedMandatoryST10 = false;
-      if(data.flags.canManualReincarnate === undefined) data.flags.canManualReincarnate = false;
-    }
-    // Migrate old saves: ensure lifecycle exists with all properties
-    if(!data.lifecycle) {
-      data.lifecycle = { isReincarnating: false, lastDeathAt: 0, lastReincarnateAt: 0 };
-    } else {
-      if(data.lifecycle.lastReincarnateAt === undefined) data.lifecycle.lastReincarnateAt = 0;
-    }
-    
-    // Migrate old saves: ensure stats exists
-    if(!data.stats) {
-      data.stats = { deaths: 0 };
-    } else {
-      if(data.stats.deaths === undefined) data.stats.deaths = 0;
-    }
-    
-    // Migrate old saves: ensure meta exists with unlockedSpeeds
-    if(!data.meta) {
-      data.meta = { unlockedSpeeds: [0, 0.25, 0.5, 1] };
-    } else {
-      if(!Array.isArray(data.meta.unlockedSpeeds)) {
-        data.meta.unlockedSpeeds = [0, 0.25, 0.5, 1];
-      } else {
-        // Ensure base speeds (0, 0.25, 0.5, 1) are always present
-        const baseSpeedsForMigration = [0, 0.25, 0.5, 1];
-        baseSpeedsForMigration.forEach(speed => {
-          if (!data.meta.unlockedSpeeds.includes(speed)) {
-            data.meta.unlockedSpeeds.push(speed);
-          }
-        });
-      }
-    }
-    
-    // Validate current speed is available, fallback to 1× if not
-    if(data.timeSpeed && data.timeSpeed.current !== 0) {
-      const availableSpeeds = data.meta?.unlockedSpeeds || [0, 0.25, 0.5, 1];
-      if(!availableSpeeds.includes(data.timeSpeed.current)) {
-        data.timeSpeed.current = 1; // Fallback to 1×
-        data.timeSpeed.paused = false;
-      }
-    }
-    
-    // Migrate old saves: ensure age tracking exists
-    // Migrate ageYears → age for consistency
-    if(data.age === undefined) {
-      if(data.ageYears !== undefined) {
-        data.age = safeNum(data.ageYears, 0);
-        delete data.ageYears;
-      } else {
-        // Calculate age from remaining lifespan
-        if(data.lifespan && data.lifespan.max !== null && data.lifespan.current !== null) {
-          data.age = Math.max(0, data.lifespan.max - data.lifespan.current);
-        } else {
-          data.age = 0;
-        }
-      }
-    }
-    
-    // Ensure lifespanHandled latch flag exists
-    if(!data.flags) data.flags = {};
-    if(data.flags.lifespanHandled === undefined) {
-      data.flags.lifespanHandled = false;
-    }
-    
-    if(data.isDead === undefined) data.isDead = false;
-    if(!data.life) {
-      data.life = { isCleanRun: true };
-    } else {
-      if(data.life.isCleanRun === undefined) data.life.isCleanRun = true;
-    }
-    
-    // ============= HYBRID SKILL SYSTEM MIGRATION =============
-    // Migrate old numeric skill levels to new rank structure
-    if(!data.migratedToRankSystem) {
-      if(DEBUG_MODE) console.log('[Migration] Converting skills to rank-based system...');
-      
-      if(data.skills) {
-        const currentRealm = data.realmIndex || 0;
-        const newSkills = {};
-        
-        for(const [skillId, oldValue] of Object.entries(data.skills)) {
-          const sk = getSkillCatalog().find(s => s.id === skillId);
-          if(!sk) continue;
-          
-          if(sk.oneTime) {
-            // Techniques: convert truthy value to purchasedOneTime flag
-            if(oldValue) {
-              newSkills[skillId] = { purchasedOneTime: true, total: 1, perRealm: {} };
-            }
-          } else {
-            // Ranked skills: convert numeric level to realm ranks
-            const level = typeof oldValue === 'number' ? oldValue : 0;
-            if(level > 0) {
-              newSkills[skillId] = {
-                total: level,
-                perRealm: { [currentRealm]: level }
-              };
-            }
-          }
-        }
-        
-        data.skills = newSkills;
-      } else {
-        data.skills = {};
-      }
-      
-      data.migratedToRankSystem = true;
-      if(DEBUG_MODE) console.log('[Migration] Rank system migration complete.');
-    }
-    
-    // Sanitize critical numeric values to prevent corruption issues
-    if(data.qi) data.qi = safeNum(data.qi, 0);
-    if(data.reinc && data.reinc.lifetimeQi) data.reinc.lifetimeQi = safeNum(data.reinc.lifetimeQi, 0);
-    if(data.age) data.age = safeNum(data.age, 0);
-    if(data.lifespan) {
-      if(data.lifespan.current !== null) data.lifespan.current = safeNum(data.lifespan.current, 100);
-      if(data.lifespan.max !== null) data.lifespan.max = safeNum(data.lifespan.max, 100);
-    }
+    // Run shared migration
+    migrateState(data);
     
     S = data;
     
@@ -4321,42 +4344,36 @@ function load(){
 
 function reset(){
   showConfirm(
-    "⚠️ FULL RESET WARNING",
-    "<span style='color: var(--danger); font-weight: bold;'>This will permanently delete EVERYTHING:</span><br><br>" +
-    "• All cultivation progress<br>" +
-    "• All karma and reincarnations<br>" +
-    "• All achievements and statistics<br>" +
-    "• All settings and preferences<br><br>" +
-    "<strong>This action cannot be undone!</strong><br><br>" +
-    "Are you absolutely certain?",
+    "Reset Current Slot",
+    "<span style='color: var(--danger); font-weight: bold;'>This will permanently delete Slot " + activeSlot + ":</span><br><br>" +
+    "• Cultivation progress<br>" +
+    "• Karma and reincarnations<br>" +
+    "• Slot achievements and statistics<br><br>" +
+    "<strong>This action cannot be undone.</strong>",
     () => {
-      // Clear all localStorage keys
-      localStorage.removeItem('xianxiaIdleSave');
-      localStorage.removeItem('xianxiaIdleAchievements');
-      localStorage.removeItem('xianxiaSettings');
-      
+      localStorage.removeItem(getSaveKeyForSlot());
+      localStorage.removeItem(getAchievementsKeyForSlot());
+
+      // Reset global guards
+      isHandlingDeath = false;
+      SKILL_CAT = null;
+
       // Reset achievement state
-      achievementState = {
-        unlocked: {},
-        voluntaryReincarnations: 0,
-        forcedReincarnationCount: 0,
-        cycleTransitions: 0
-      };
-      
+      achievementState = createDefaultAchievementState();
+
       // Reinitialize game state
       S = defaultState();
-      
-      // Save the fresh state
-      save();
-      saveAchievementState();
-      
+
+      updateLastSave();
+      refreshMainMenuSlots();
+
       // Refresh UI
       renderAll();
       renderAchievements();
       updateAchievementsBadge();
-      
-      showModal('🔄 Full Reset Complete', 
-        'All progress has been erased. Your cultivation journey begins anew.', '⚠️');
+
+      showModal('Slot Reset Complete',
+        `Slot ${activeSlot} has been cleared. Your cultivation journey begins anew.`, '⚠️');
     },
     null,
     '⚠️'
@@ -4375,107 +4392,22 @@ function importSave(){
     const json = decodeURIComponent(escape(atob(b64)));
     const data = JSON.parse(json);
     
-    // Apply same migration and sanitization as load()
-    if(!data.version) data.version = '0.0.0';
-    if(!data.reinc) data.reinc = { times: 0, karma: 0, lifetimeQi: 0 };
-    if(!data.lifespan) {
-      const realmIndex = Math.min(data.realmIndex || 0, realms.length - 1);
-      const maxLifespan = BAL.lifespan?.realmMaxLifespan?.[realmIndex];
-      if(maxLifespan === null) {
-        data.lifespan = { current: null, max: null };
-      } else {
-        const lifespan = maxLifespan || 100;
-        data.lifespan = { current: lifespan, max: lifespan };
+    // Reset global guards on import
+    isHandlingDeath = false;
+    SKILL_CAT = null;
+    
+    // Mortal Realm migration (same as load — needed for pre-v1.2.0 exports)
+    if(!data.migratedToMortalRealm) {
+      if(DEBUG_MODE) console.log('[Import Migration] Shifting realm indices for pre-Mortal save...');
+      if(data.realmIndex > 0 || data.stage > 1) {
+        const oldIndex = data.realmIndex || 0;
+        data.realmIndex = Math.min(oldIndex + 1, realms.length - 1);
       }
-    }
-    if(!data.timeSpeed) data.timeSpeed = { current: 1, paused: false };
-    if(!data.flags) {
-      data.flags = { 
-        unlockedBeyondSpirit: false,
-        hasUnlockedSpiritCycle: false,
-        hasCompletedMandatoryST10: false,
-        canManualReincarnate: false
-      };
-    } else {
-      if(data.flags.hasUnlockedSpiritCycle === undefined) data.flags.hasUnlockedSpiritCycle = false;
-      if(data.flags.hasCompletedMandatoryST10 === undefined) data.flags.hasCompletedMandatoryST10 = false;
-      if(data.flags.canManualReincarnate === undefined) data.flags.canManualReincarnate = false;
-    }
-    if(!data.lifecycle) {
-      data.lifecycle = { isReincarnating: false, lastDeathAt: 0, lastReincarnateAt: 0 };
-    } else {
-      if(data.lifecycle.lastReincarnateAt === undefined) data.lifecycle.lastReincarnateAt = 0;
+      data.migratedToMortalRealm = true;
     }
     
-    if(!data.stats) {
-      data.stats = { deaths: 0 };
-    } else {
-      if(data.stats.deaths === undefined) data.stats.deaths = 0;
-    }
-    
-    // Migrate old saves: ensure meta exists with unlockedSpeeds
-    if(!data.meta) {
-      data.meta = { unlockedSpeeds: [0, 0.5, 1] };
-    } else {
-      if(!Array.isArray(data.meta.unlockedSpeeds)) {
-        data.meta.unlockedSpeeds = [0, 0.25, 0.5, 1];
-      } else {
-        // Ensure base speeds (0, 0.5, 1) are always present
-        const baseSpeedsAlwaysAvailable = [0, 0.25, 0.5, 1];
-        baseSpeedsAlwaysAvailable.forEach(speed => {
-          if (!data.meta.unlockedSpeeds.includes(speed)) {
-            data.meta.unlockedSpeeds.push(speed);
-          }
-        });
-      }
-    }
-    
-    // Validate current speed is available, fallback to 1× if not
-    if(data.timeSpeed && data.timeSpeed.current !== 0) {
-      const availableSpeeds = data.meta?.unlockedSpeeds || [0, 0.25, 0.5, 1];
-      if(!availableSpeeds.includes(data.timeSpeed.current)) {
-        data.timeSpeed.current = 1; // Fallback to 1×
-        data.timeSpeed.paused = false;
-      }
-    }
-    
-    // Migrate old saves: ensure age tracking exists
-    // Migrate ageYears → age for consistency
-    if(data.age === undefined) {
-      if(data.ageYears !== undefined) {
-        data.age = safeNum(data.ageYears, 0);
-        delete data.ageYears;
-      } else {
-        // Calculate age from remaining lifespan
-        if(data.lifespan && data.lifespan.max !== null && data.lifespan.current !== null) {
-          data.age = Math.max(0, data.lifespan.max - data.lifespan.current);
-        } else {
-          data.age = 0;
-        }
-      }
-    }
-    
-    // Ensure lifespanHandled latch flag exists
-    if(!data.flags) data.flags = {};
-    if(data.flags.lifespanHandled === undefined) {
-      data.flags.lifespanHandled = false;
-    }
-    
-    if(data.isDead === undefined) data.isDead = false;
-    if(!data.life) {
-      data.life = { isCleanRun: true };
-    } else {
-      if(data.life.isCleanRun === undefined) data.life.isCleanRun = true;
-    }
-    
-    // Sanitize critical numeric values
-    if(data.qi) data.qi = safeNum(data.qi, 0);
-    if(data.reinc && data.reinc.lifetimeQi) data.reinc.lifetimeQi = safeNum(data.reinc.lifetimeQi, 0);
-    if(data.age) data.age = safeNum(data.age, 0);
-    if(data.lifespan) {
-      if(data.lifespan.current !== null) data.lifespan.current = safeNum(data.lifespan.current, 100);
-      if(data.lifespan.max !== null) data.lifespan.max = safeNum(data.lifespan.max, 100);
-    }
+    // Apply all shared migration and sanitization
+    migrateState(data);
     
     S = { ...defaultState(), ...data };
     save();
@@ -4525,13 +4457,32 @@ const achievementsBtn = document.getElementById('achievementsBtn');
 const achievementsPanel = document.getElementById('achievementsPanel');
 const achievementsClose = document.getElementById('achievementsClose');
 const achievementsList = document.getElementById('achievementsList');
+const currentSaveSlotEl = document.getElementById('currentSaveSlot');
+const mainMenuBtn = document.getElementById('mainMenuBtn');
+const mainMenuOverlay = document.getElementById('mainMenuOverlay');
+const menuSlotsEl = document.getElementById('menuSlots');
+const newGameBtn = document.getElementById('newGameBtn');
+const loadGameBtn = document.getElementById('loadGameBtn');
+const menuMusicBtn = document.getElementById('menuMusicBtn');
+const videoOverlayEl = document.getElementById('videoOverlay');
+const cutsceneVideoEl = document.getElementById('gameCutscene');
+const skipVideoBtn = document.getElementById('skipVideoBtn');
 // Note: currentCycleEl removed - Current Cycle moved to Cultivation Zone badge
 // Note: realmBonusEl removed - Realm Bonus UI replaced with Transcendence panel
 
+function updateCurrentSlotLabel() {
+  if (!currentSaveSlotEl) return;
+  currentSaveSlotEl.textContent = `Slot ${activeSlot}`;
+}
+
 function updateLastSave(){
-  if(!S.lastSave){ lastSaveEl.textContent = 'Last Save: —'; return; }
+  if (!lastSaveEl) return;
+  if(!S.lastSave){
+    lastSaveEl.textContent = `Slot ${activeSlot} - Last Save: -`;
+    return;
+  }
   const d = new Date(S.lastSave);
-  lastSaveEl.textContent = 'Last Save: ' + d.toLocaleString();
+  lastSaveEl.textContent = `Slot ${activeSlot} - Last Save: ${d.toLocaleString()}`;
 }
 
 function renderStats(){
@@ -4698,7 +4649,7 @@ function renderTranscendencePanel() {
 /**
  * Preview the effect of buying N levels of a skill
  * Calculates delta to QPS/QPC/offline multiplier and total cost
- * Uses tier-aware skill effect calculations
+ * Uses rank-based skill system (perRealm ranks, not flat numbers)
  * @param {string} skillId - Skill ID
  * @param {number} qty - Number of levels to preview
  * @returns {Object} {deltaQPS, deltaQPC, deltaOffline, totalCost, affordable, canAfford}
@@ -4707,11 +4658,12 @@ function previewBulkEffect(skillId, qty) {
   const sk = getSkill(skillId);
   if (!sk) return { deltaQPS: 0, deltaQPC: 0, deltaOffline: 0, totalCost: 0, affordable: 0, canAfford: false };
   
-  const currentLevel = S.skills[skillId] || 0;
-  const newLevel = currentLevel + qty;
+  // Use rank-based system: get current realm ranks
+  const currentRanks = currentRealmRanks(skillId);
+  const newRanks = currentRanks + qty;
   
   // Safety: prevent preview of impossible quantities
-  if (!Number.isFinite(newLevel) || newLevel < currentLevel) {
+  if (!Number.isFinite(newRanks) || newRanks < currentRanks) {
     return { deltaQPS: 0, deltaQPC: 0, deltaOffline: 0, totalCost: Infinity, affordable: 0, canAfford: false };
   }
   
@@ -4720,20 +4672,20 @@ function previewBulkEffect(skillId, qty) {
   const oldQPC = totalQPC();
   const oldOffline = totalOfflineMult();
   
-  // Temporarily increase skill level
-  const originalLevel = S.skills[skillId];
-  S.skills[skillId] = newLevel;
+  // Temporarily increase skill ranks (save and restore properly)
+  const originalSkillData = S.skills[skillId] ? JSON.parse(JSON.stringify(S.skills[skillId])) : undefined;
+  addRealmRank(skillId, qty);
   
   // Calculate new totals
   const newQPS = totalQPS();
   const newQPC = totalQPC();
   const newOffline = totalOfflineMult();
   
-  // Restore original level
-  if (originalLevel === undefined) {
+  // Restore original skill data
+  if (originalSkillData === undefined) {
     delete S.skills[skillId];
   } else {
-    S.skills[skillId] = originalLevel;
+    S.skills[skillId] = originalSkillData;
   }
   
   // Calculate deltas
@@ -4757,17 +4709,29 @@ function previewBulkEffect(skillId, qty) {
   };
 }
 
+function getBulkOptionsForSkill(skill) {
+  if (!skill || skill.oneTime) return [1];
+  const cap = Math.max(1, Math.min(MAX_RANKS_PER_REALM, Math.floor(skill.ranksPerRealm || 1)));
+  const options = [1, Math.min(5, cap), Math.min(10, cap), cap];
+  return [...new Set(options)].sort((a, b) => a - b);
+}
+
+function getBulkMultiplierForSkill(skill, desired = getLastBulkMultiplier()) {
+  const options = getBulkOptionsForSkill(skill);
+  const value = Math.max(1, Math.floor(Number(desired) || 1));
+  if (options.includes(value)) return value;
+  const lower = options.filter(opt => opt <= value);
+  return lower.length ? lower[lower.length - 1] : options[0];
+}
+
 function renderShop(){
   shopEl.innerHTML = '';
   
   // Mortal Realm (realm 0) cannot buy skills
   if (S.realmIndex === 0) {
-    shopEl.innerHTML = '<div class="small muted" style="text-align: center; padding: 20px;">Skills are locked in Mortal Realm.<br>Advance to Qi Refining to unlock cultivation techniques.</div>';
+    shopEl.innerHTML = '<div class="small muted" style="text-align: center; padding: 20px;">Skills are locked in Mortal Realm.<br>QPS and bulk buying unlock at Qi Refining (max x12 per skill).</div>';
     return;
   }
-  
-  // Bulk options: Only ×1, ×10, ×100 (removed ×1000/×10000)
-  const bulkOptions = [1, 10, 100];
   
   // Filter skills by cycle unlock requirements
   const availableSkills = getSkillCatalog().filter(sk => skillUnlockedByCycle(sk));
@@ -4839,11 +4803,13 @@ function renderShop(){
     
     const wrap = document.createElement('div');
     wrap.className = 'shop-item';
+    const bulkOptions = getBulkOptionsForSkill(sk);
+    const activeBulk = getBulkMultiplierForSkill(sk);
     
     // Build bulk selector buttons HTML
     const bulkButtonsHTML = bulkOptions.map(mult => {
-      const isActive = mult === getLastBulkMultiplier();
-      return `<button class="bulk-btn ${isActive ? 'active' : ''}" data-mult="${mult}" aria-pressed="${isActive}">×${mult}</button>`;
+      const isActive = mult === activeBulk;
+      return `<button class="bulk-btn ${isActive ? 'active' : ''}" data-mult="${mult}" aria-pressed="${isActive}">x${mult}</button>`;
     }).join('');
     
     wrap.innerHTML = `
@@ -4852,7 +4818,7 @@ function renderShop(){
         <div>
           <h4>${sk.name} <span class="muted">(Ranks ${currentRanks}/${maxRanks})</span></h4>
           <div class="desc">${descDyn}</div>
-          <div class="small muted">Cost (×1): ${fmt(cost)} Qi</div>
+          <div class="small muted">Cost (x1): ${fmt(cost)} Qi</div>
           <div class="bulk-cost small muted" data-skill="${sk.id}"></div>
         </div>
       </div>
@@ -4891,7 +4857,8 @@ function renderShop(){
   shopEl.querySelectorAll('button.buy-btn[data-skill]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const id = btn.getAttribute('data-skill');
-      const mult = getLastBulkMultiplier();
+      const sk = getSkill(id);
+      const mult = getBulkMultiplierForSkill(sk, getLastBulkMultiplier());
       buySkill(id, mult);
     });
   });
@@ -4899,7 +4866,8 @@ function renderShop(){
   // Initialize cost previews for current bulk multiplier
   const currentMult = getLastBulkMultiplier();
   for(const sk of getSkillCatalog()){
-    updateBulkCostPreview(sk.id, currentMult);
+    const validMult = getBulkMultiplierForSkill(sk, currentMult);
+    updateBulkCostPreview(sk.id, validMult);
   }
 }
 
@@ -4964,17 +4932,183 @@ function renderTimeSpeed(){
 }
 
 function renderAll(){
-  verEl.textContent = VERSION;
+  if (verEl) verEl.textContent = VERSION;
   renderStats();
   renderRealm();
   renderTranscendencePanel();
   renderShop();
   renderTimeSpeed();
   renderCycleBadge();
+  updateCurrentSlotLabel();
   updateLastSave();
   updateAchievementsBadge();
   checkAchievements();
   updateCultivatorImage();
+}
+
+function readSlotState(slot) {
+  try {
+    const raw = localStorage.getItem(getSaveKeyForSlot(slot));
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function getSlotLabel(slot) {
+  const data = readSlotState(slot);
+  if (!data) return `Slot ${slot}\nEmpty`;
+  const realmIndex = Math.max(0, Math.min(realms.length - 1, Number(data.realmIndex || 0)));
+  const stage = Math.max(1, Math.min(10, Number(data.stage || 1)));
+  const realmName = realms[realmIndex]?.name || 'Unknown Realm';
+  const savedAt = data.lastSave ? new Date(data.lastSave).toLocaleString() : 'Unknown';
+  return `Slot ${slot}\n${realmName} ${stage}/10\nSaved: ${savedAt}`;
+}
+
+function setMainMenuSlotsVisible(visible) {
+  menuLoadMode = !!visible;
+  if (menuSlotsEl) {
+    menuSlotsEl.classList.toggle('hidden', !menuLoadMode);
+    menuSlotsEl.setAttribute('aria-hidden', menuLoadMode ? 'false' : 'true');
+  }
+}
+
+function updateMainMenuLoadButton() {
+  if (!loadGameBtn) return;
+  const hasCurrentSave = !!readSlotState(selectedMenuSlot);
+  loadGameBtn.textContent = menuLoadMode ? 'Load Selected Save' : 'Load Save';
+  loadGameBtn.disabled = menuLoadMode ? !hasCurrentSave : false;
+}
+
+function refreshMainMenuSlots() {
+  if (!menuSlotsEl) return;
+
+  menuSlotsEl.querySelectorAll('.menu-slot-btn').forEach(btn => {
+    const slot = normalizeSlot(btn.getAttribute('data-slot'));
+    const hasSave = !!readSlotState(slot);
+    btn.classList.toggle('selected', slot === selectedMenuSlot);
+    btn.classList.toggle('empty', !hasSave);
+    btn.textContent = getSlotLabel(slot);
+  });
+
+  updateMainMenuLoadButton();
+}
+
+function hideMainMenu() {
+  if (!mainMenuOverlay) return;
+  mainMenuOverlay.classList.add('hidden');
+  mainMenuOverlay.setAttribute('aria-hidden', 'true');
+}
+
+function showMainMenu() {
+  gameActive = false;
+  selectedMenuSlot = activeSlot;
+  setMainMenuSlotsVisible(false);
+  refreshMainMenuSlots();
+  updateMenuMusicButton();
+  closeAchievementsPanel();
+  const settingsPanel = document.getElementById('settingsPanel');
+  const settingsBtn = document.getElementById('settingsBtn');
+  if (settingsPanel) settingsPanel.classList.remove('open');
+  if (settingsBtn) settingsBtn.setAttribute('aria-expanded', 'false');
+  if (mainMenuOverlay) {
+    mainMenuOverlay.classList.remove('hidden');
+    mainMenuOverlay.setAttribute('aria-hidden', 'false');
+  }
+}
+
+function startActiveSession() {
+  gameActive = true;
+  setMainMenuSlotsVisible(false);
+  hideMainMenu();
+  const settingsPanel = document.getElementById('settingsPanel');
+  const settingsBtn = document.getElementById('settingsBtn');
+  if (settingsPanel) settingsPanel.classList.remove('open');
+  if (settingsBtn) settingsBtn.setAttribute('aria-expanded', 'false');
+  updateCurrentSlotLabel();
+  last = now();
+  S.lastTick = last;
+  renderAll();
+}
+
+function startNewGameAtSlot(slot) {
+  const targetSlot = normalizeSlot(slot);
+  if (readSlotState(targetSlot)) {
+    const confirmed = window.confirm(`Slot ${targetSlot} already has a save. Overwrite it with a new game?`);
+    if (!confirmed) return;
+  }
+
+  setActiveSlot(targetSlot);
+  localStorage.removeItem(getSaveKeyForSlot());
+  localStorage.removeItem(getAchievementsKeyForSlot());
+
+  achievementState = createDefaultAchievementState();
+  S = defaultState();
+  refreshMainMenuSlots();
+  startActiveSession();
+  queueCutsceneSequence(['born']);
+}
+
+async function loadGameFromSlot(slot) {
+  const targetSlot = normalizeSlot(slot);
+  setActiveSlot(targetSlot);
+  achievementState = loadAchievementState(targetSlot);
+
+  const loaded = load(targetSlot);
+  if (!loaded) {
+    refreshMainMenuSlots();
+    return;
+  }
+
+  S = { ...defaultState(), ...loaded, skills: { ...defaultState().skills, ...(loaded.skills || {}) } };
+  enforceQiRefiningQpsBaseline();
+  validateTimeSpeedSystem();
+  if(!S.currentCycle) updateCurrentCycle();
+
+  renderAll();
+  startActiveSession();
+  await applyOfflineProgressOnResume({ showPopup: true });
+  renderAll();
+  refreshMainMenuSlots();
+}
+
+function initMainMenuUI() {
+  if (menuSlotsEl) {
+    menuSlotsEl.querySelectorAll('.menu-slot-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedMenuSlot = normalizeSlot(btn.getAttribute('data-slot'));
+        refreshMainMenuSlots();
+      });
+    });
+  }
+
+  if (newGameBtn) {
+    newGameBtn.addEventListener('click', () => startNewGameAtSlot(selectedMenuSlot));
+  }
+
+  if (loadGameBtn) {
+    loadGameBtn.addEventListener('click', async () => {
+      if (!menuLoadMode) {
+        setMainMenuSlotsVisible(true);
+        refreshMainMenuSlots();
+        return;
+      }
+      await loadGameFromSlot(selectedMenuSlot);
+    });
+  }
+
+  if (menuMusicBtn) {
+    menuMusicBtn.addEventListener('click', () => {
+      toggleMusicEnabled();
+      updateMenuMusicButton();
+    });
+  }
+
+  setMainMenuSlotsVisible(false);
+  updateMenuMusicButton();
+  refreshMainMenuSlots();
+  showMainMenu();
 }
 
 // ============= ACHIEVEMENTS PANEL MANAGEMENT =============
@@ -4982,12 +5116,12 @@ function renderAll(){
 let currentAchievementFilter = 'all';
 
 function openAchievementsPanel() {
+  if (!gameActive) return;
   if (!achievementsPanel || !achievementsBtn) return;
   
   // Mark as opened for the dao_seeker achievement
   if (!achievementState.achievementsPanelOpened) {
     achievementState.achievementsPanelOpened = true;
-    saveAchievementState();
     checkAchievements();
   }
   
@@ -5065,13 +5199,19 @@ function loop(){
   const nowMs = now();
   let rawDt = (nowMs - last)/1000; // Real seconds elapsed (wall-clock time)
   if (rawDt < 0) rawDt = 0; // Guard against time going backwards
+  if (rawDt > 5) rawDt = 5; // Cap dt to prevent double-counting with offline system
   last = nowMs;
   S.lastTick = nowMs; // Update last tick timestamp
+  
+  if (!gameActive) {
+    requestAnimationFrame(loop);
+    return;
+  }
   
   // Time speed affects ONLY lifespan aging, NOT Qi gains
   // Qi accumulation uses rawDt (real elapsed time)
   // Lifespan uses rawDt * speed (time-scaled aging)
-  const speed = Math.max(0, S.timeSpeed?.current || 1);
+  const speed = getTimeSpeed(); // Centralized getter respects paused flag
   
   tick(rawDt, speed); // Pass raw dt and speed separately
   renderStats();
@@ -5110,11 +5250,18 @@ function attachCultivatorHalo() {
 }
 
 // Touch responsiveness for mobile (no ~300ms delay) - REPLACED by pointerdown
-breakthroughBtn.addEventListener('click', ()=>{ doBreakthrough(); save(); renderAll(); });
+breakthroughBtn.addEventListener('click', ()=>{ doBreakthrough(); renderAll(); });
 saveBtn.addEventListener('click', save);
 exportBtn.addEventListener('click', exportSave);
 importBtn.addEventListener('click', importSave);
 resetBtn.addEventListener('click', reset);
+if (mainMenuBtn) {
+  mainMenuBtn.addEventListener('click', () => {
+    const confirmed = window.confirm('Return to main menu? Unsaved progress will be lost unless you save manually.');
+    if (!confirmed) return;
+    showMainMenu();
+  });
+}
 
 // Achievement system event listeners
 if (achievementsBtn) {
@@ -5154,6 +5301,11 @@ document.addEventListener('keydown', (e)=>{
 
 (async function init(){
   await loadBalance(); // Load balance configuration first
+  
+  // Start in a neutral state; menu controls which slot to load/start.
+  S = defaultState();
+  achievementState = loadAchievementState(activeSlot);
+  
   assertMonotonicRequirements(); // Validate stage requirements (DEBUG_MODE only)
   S = { ...defaultState(), ...S, skills: { ...defaultState().skills, ...S.skills } };
   
@@ -5199,36 +5351,36 @@ document.addEventListener('keydown', (e)=>{
   
   renderAll();
   
-  // Apply offline progress on initial load
-  await applyOfflineProgressOnResume({ showPopup: true });
-  
   loop();
-  setInterval(save, 15000);
   initDebugPanel(); // Initialize debug panel if in dev mode
   initMusicSystem(); // Initialize background music system
+  initMainMenuUI(); // Show menu and wait for slot action
+  
+  initComplete = true; // All data loaded — saving is now safe
 })();
 
-// ============= SESSION SNAPSHOT HOOKS =============
-
-// Save session snapshot when tab goes to background
-window.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    saveSessionSnapshot();
-  } else {
-    // Tab became visible - apply offline progress
-    applyOfflineProgressOnResume({ showPopup: true });
-  }
-});
-
-// Save snapshot before page unloads
-window.addEventListener('pagehide', saveSessionSnapshot);
-window.addEventListener('beforeunload', saveSessionSnapshot);
+// Manual-save mode: no background autosave/session snapshot hooks.
 
 function updateShopButtons(){
   document.querySelectorAll('#shop button[data-skill]').forEach(btn=>{
     const id = btn.getAttribute('data-skill');
+    const sk = getSkill(id);
+    if (!sk) return;
+    
+    // One-time techniques: check if already purchased
+    if (sk.oneTime) {
+      const purchased = isTechniquePurchased(id);
+      const can = !purchased && S.qi >= sk.cost;
+      btn.disabled = !can;
+      btn.classList.toggle('primary', can);
+      btn.textContent = purchased ? 'Owned' : 'Buy';
+      return;
+    }
+    
+    // Ranked skills: check both cost AND rank cap
     const cost = skillCost(id);
-    const can = S.qi >= cost;
+    const atCap = currentRealmRanks(id) >= (sk.ranksPerRealm || 0);
+    const can = !atCap && S.qi >= cost;
     btn.disabled = !can;
     btn.classList.toggle('primary', can);
   });
@@ -5277,6 +5429,9 @@ function simulateProgress({seconds = 3600, clickRate = 3, buyStrategy = "greedy_
   const simSkillCost = (id) => {
     const skill = BAL.skills[id];
     const lvl = simS.skills[id] || 0;
+    if (!skill.oneTime && lvl >= (skill.ranksPerRealm || MAX_RANKS_PER_REALM)) {
+      return Infinity;
+    }
     return Math.floor(skill.cost * Math.pow(skill.costScale, lvl));
   };
   
@@ -5307,6 +5462,9 @@ function simulateProgress({seconds = 3600, clickRate = 3, buyStrategy = "greedy_
         simS.stage = 1;
         simS.qpcBase += BAL.progression.realmAdvanceReward.qpcBaseAdd;
         simS.qpsBase += BAL.progression.realmAdvanceReward.qpsBaseAdd;
+        if (simS.realmIndex === idx('qi_refining')) {
+          simS.qpsBase = 1;
+        }
       }
     }
     
@@ -5317,7 +5475,7 @@ function simulateProgress({seconds = 3600, clickRate = 3, buyStrategy = "greedy_
       
       for (const skillId of skillPriority) {
         const cost = simSkillCost(skillId);
-        if (simS.qi >= cost) {
+        if (Number.isFinite(cost) && simS.qi >= cost) {
           simS.qi -= cost;
           simS.skills[skillId] = (simS.skills[skillId] || 0) + 1;
           purchases[skillId] = (purchases[skillId] || 0) + 1;
@@ -5498,6 +5656,7 @@ function totalQPS_for(st){
 
 function skillCostFor(st, id){
   const sk = getSkill(id); const lvl = st.skills[id]||0;
+  if (!sk.oneTime && lvl >= (sk.ranksPerRealm || MAX_RANKS_PER_REALM)) return Infinity;
   return Math.floor(sk.cost * Math.pow(sk.costScale, lvl));
 }
 
@@ -5524,6 +5683,10 @@ function bestPurchase(st, clickRate){
   let best = null;
 
   for(const c of candidates){
+    const sk = getSkill(c.id);
+    const lvl = st.skills[c.id] || 0;
+    if (sk && !sk.oneTime && lvl >= (sk.ranksPerRealm || MAX_RANKS_PER_REALM)) continue;
+
     const cost = skillCostFor(st, c.id);
     if(st.qi < cost) continue;
 
@@ -5576,6 +5739,9 @@ function simulateCompletion(opt={}){
           // Use BAL values for consistency with main game
           st.qpcBase += BAL.progression.realmAdvanceReward.qpcBaseAdd;
           st.qpsBase += BAL.progression.realmAdvanceReward.qpsBaseAdd;
+          if (st.realmIndex === idx('qi_refining')) {
+            st.qpsBase = 1;
+          }
         } else {
           // Spirit Transformation 10 alcanzado
           return true;
@@ -5688,6 +5854,34 @@ let musicSettings = loadMusicSettings();
 audio.volume = musicSettings.volume;
 audio.muted = !musicSettings.enabled;
 
+function updateSettingsMuteButton() {
+  const muteBtn = document.getElementById('musicMuteToggle');
+  if (muteBtn) {
+    muteBtn.textContent = musicSettings.enabled ? 'Mute' : 'Unmute';
+  }
+}
+
+function updateMenuMusicButton() {
+  if (menuMusicBtn) {
+    menuMusicBtn.textContent = musicSettings.enabled ? 'Music: On' : 'Music: Off';
+  }
+}
+
+function setMusicEnabled(enabled) {
+  musicSettings.enabled = !!enabled;
+  audio.muted = !musicSettings.enabled;
+  saveMusicSettings(musicSettings);
+  updateSettingsMuteButton();
+  updateMenuMusicButton();
+  if (musicSettings.enabled) {
+    playSafe();
+  }
+}
+
+function toggleMusicEnabled() {
+  setMusicEnabled(!musicSettings.enabled);
+}
+
 function loadTrack(i){
   currentIndex = (i + PLAYLIST.length) % PLAYLIST.length;
   audio.src = PLAYLIST[currentIndex];
@@ -5779,7 +5973,8 @@ function initMusicSystem(){
 
   // Initialize controls from settings
   volumeSlider.value = Math.round(musicSettings.volume * 100);
-  muteBtn.textContent = musicSettings.enabled ? 'Mute' : 'Unmute';
+  updateSettingsMuteButton();
+  updateMenuMusicButton();
 
   // Volume control
   volumeSlider.addEventListener('input', () => {
@@ -5791,13 +5986,7 @@ function initMusicSystem(){
 
   // Mute/unmute control
   muteBtn.addEventListener('click', () => {
-    const enabled = !audio.muted;
-    // toggle
-    audio.muted = enabled;
-    musicSettings.enabled = !audio.muted;
-    muteBtn.textContent = musicSettings.enabled ? 'Mute' : 'Unmute';
-    saveMusicSettings(musicSettings);
-    if (musicSettings.enabled) playSafe();
+    toggleMusicEnabled();
   });
 
   // Resume on user interaction if autoplay was blocked
@@ -5807,6 +5996,103 @@ function initMusicSystem(){
     const note = document.getElementById('autoplayNote');
     if (note) note.style.display = 'none';
   }, { once: true });
+}
+
+// ============= CUTSCENE VIDEO SYSTEM =============
+
+const CUTSCENE_FILES = {
+  born: 'assets/videos/born.mp4',
+  final: 'assets/videos/final.mp4',
+  mandatory_reincarnation: 'assets/videos/Mreincarnation.mp4',
+  voluntary_reincarnation: 'assets/videos/Vreincarnation.mp4',
+  old_age: 'assets/videos/old_age.mp4'
+};
+
+let cutsceneQueue = Promise.resolve();
+
+function getCutscenePath(cutsceneId) {
+  return CUTSCENE_FILES[cutsceneId] || null;
+}
+
+function playCutscene(cutsceneId) {
+  const src = getCutscenePath(cutsceneId);
+  if (!src || !videoOverlayEl || !cutsceneVideoEl || !skipVideoBtn) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise(resolve => {
+    let finished = false;
+    const shouldResumeMusic = musicSettings.enabled && audio && !audio.paused;
+
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+
+      skipVideoBtn.removeEventListener('click', onSkip);
+      cutsceneVideoEl.removeEventListener('ended', onEnded);
+      cutsceneVideoEl.removeEventListener('error', onError);
+
+      cutsceneVideoEl.pause();
+      cutsceneVideoEl.removeAttribute('src');
+      cutsceneVideoEl.load();
+
+      videoOverlayEl.classList.add('hidden');
+      videoOverlayEl.setAttribute('aria-hidden', 'true');
+
+      if (shouldResumeMusic) {
+        playSafe();
+      }
+
+      resolve(true);
+    };
+
+    const onEnded = () => cleanup();
+    const onError = () => cleanup();
+    const onSkip = () => cleanup();
+
+    skipVideoBtn.addEventListener('click', onSkip);
+    cutsceneVideoEl.addEventListener('ended', onEnded);
+    cutsceneVideoEl.addEventListener('error', onError);
+
+    if (audio && !audio.paused) {
+      audio.pause();
+    }
+
+    videoOverlayEl.classList.remove('hidden');
+    videoOverlayEl.setAttribute('aria-hidden', 'false');
+
+    cutsceneVideoEl.src = src;
+    cutsceneVideoEl.muted = false;
+    cutsceneVideoEl.currentTime = 0;
+    const playPromise = cutsceneVideoEl.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(async () => {
+        try {
+          cutsceneVideoEl.muted = true;
+          await cutsceneVideoEl.play();
+        } catch {
+          cleanup();
+        }
+      });
+    }
+  });
+}
+
+function queueCutsceneSequence(sequence = []) {
+  const validSequence = sequence.filter(id => !!getCutscenePath(id));
+  if (!validSequence.length) return Promise.resolve();
+
+  cutsceneQueue = cutsceneQueue
+    .then(async () => {
+      for (const id of validSequence) {
+        await playCutscene(id);
+      }
+    })
+    .catch(err => {
+      console.warn('Cutscene queue error:', err);
+    });
+
+  return cutsceneQueue;
 }
 
 // === DEV MODE CONTROL ===
