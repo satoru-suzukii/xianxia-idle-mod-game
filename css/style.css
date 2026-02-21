@@ -336,7 +336,9 @@ textarea{width:100%;min-height:110px;background:#0b1118;color:var(--text);border
   position: absolute;
   top: calc(64px + 8px);
   right: 20px;
-  width: 280px;
+  width: 360px;
+  max-height: calc(100vh - 88px);
+  overflow-y: auto;
   background: var(--panel);
   border: 1px solid #1e2631;
   border-radius: 12px;
@@ -365,6 +367,31 @@ textarea{width:100%;min-height:110px;background:#0b1118;color:var(--text);border
 
 #musicVolume {
   width: 100%;
+}
+
+.settings-panel #ioArea {
+  margin-top: 8px;
+  min-height: 84px;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.settings-actions .btn {
+  flex: 1 1 0;
+}
+
+#saveBtn,
+#mainMenuBtn {
+  margin-top: 8px;
+  width: 100%;
+}
+
+#mainMenuBtn {
+  margin-top: 10px;
 }
 
 @media (max-width: 900px) {
@@ -425,6 +452,133 @@ textarea{width:100%;min-height:110px;background:#0b1118;color:var(--text);border
     padding: 3px 6px;
     min-width: 28px;
   }
+}
+
+/* Main Menu */
+.main-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.7)),
+    url('../assets/menuback.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.main-menu-overlay.hidden {
+  display: none;
+}
+
+.main-menu-panel {
+  width: min(560px, 100%);
+  border: 1px solid #1e2631;
+  border-radius: 16px;
+  background: #05080d;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.6);
+  padding: 20px;
+}
+
+.main-menu-title {
+  margin: 0;
+  font-size: 30px;
+  color: var(--text);
+  text-align: center;
+}
+
+.main-menu-subtitle {
+  margin: 8px 0 16px 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.menu-slots {
+  display: grid;
+  gap: 8px;
+}
+
+.menu-slots.hidden {
+  display: none;
+}
+
+.menu-slot-btn {
+  width: 100%;
+  text-align: left;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #263140;
+  background: #0c141d;
+  color: var(--text);
+  cursor: pointer;
+  white-space: pre-line;
+  line-height: 1.35;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.menu-slot-btn:hover {
+  border-color: #3c4f68;
+  background: #101927;
+}
+
+.menu-slot-btn.selected {
+  border-color: var(--accent);
+  background: rgba(126, 231, 135, 0.08);
+}
+
+.menu-slot-btn.empty {
+  color: var(--muted);
+}
+
+.main-menu-actions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.main-menu-actions .btn {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .main-menu-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Cutscene Video Overlay */
+.video-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25000;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-overlay.hidden {
+  display: none;
+}
+
+.game-cutscene {
+  width: min(1200px, 100vw);
+  max-height: 100vh;
+  object-fit: contain;
+  background: #000;
+}
+
+.video-skip-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 25001;
 }
 
 /* In-Game Modal System */
