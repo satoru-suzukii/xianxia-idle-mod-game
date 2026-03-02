@@ -1,4 +1,4 @@
-﻿/*
+/*
  * XIANXIA IDLE V1.2.0
  * 
  * TIME SPEED SYSTEM: Affects ONLY Lifespan Aging
@@ -127,7 +127,7 @@ const SKILL_SCALING = {
  * - Qi Refining (1): ~0.0003 (0.03%)
  * - Golden Core (3): ~0.001 (0.10%)
  * - Spirit Transform (5): ~0.003 (0.30%)
- * - True Immortal (10): ~0.01 (1.00%)
+ * - Void Lord (10): ~0.01 (1.00%)
  * 
  * @param {number} realmIndex - Current realm index
  * @returns {number} Minimum percent per level (fraction)
@@ -578,7 +578,7 @@ const realms = [
   { id:'body_integration', name:'Body Integration' },
   { id:'mahayana', name:'Mahayana' },
   { id:'tribulation_transcendence', name:'Tribulation Transcendence' },
-  { id:'true_immortal', name:'True Immortal' },
+  { id:'void_lord', name:'Void Lord' },
 ];
 
 // ============= REALM ID MAPPING SYSTEM =============
@@ -824,7 +824,7 @@ function assertSkillScalingFinite() {
   const testSkills = getSkillCatalog();
   
   // Test at various realms and skill levels
-  const testRealms = [0, 3, 5, 8, 10]; // Mortal, Golden Core, ST, Mahayana, True Immortal
+  const testRealms = [0, 3, 5, 8, 10]; // Mortal, Golden Core, ST, Mahayana, Void Lord
   const testLevels = [1, 10, 100, 1000, 10000];
   
   for (const realm of testRealms) {
@@ -1386,7 +1386,7 @@ function getCycleBoundaries() {
     // Fallback if no cycle definitions
     return {
       mortal: { start: idx('mortal_realm'), end: idx('spirit_transformation') },
-      spirit: { start: idx('void_refining'), end: idx('true_immortal') }
+      spirit: { start: idx('void_refining'), end: idx('void_lord') }
     };
   }
   
@@ -1400,7 +1400,7 @@ function getCycleBoundaries() {
     },
     spirit: {
       start: spiritRealms[0] ?? idx('void_refining'),
-      end: spiritRealms[spiritRealms.length - 1] ?? idx('true_immortal')
+      end: spiritRealms[spiritRealms.length - 1] ?? idx('void_lord')
     }
   };
 }
@@ -1435,7 +1435,7 @@ function updateCurrentCycle() {
   
   // Detect transition from Mortal to Spirit
   if (oldCycle === 'mortal' && S.currentCycle === 'spirit') {
-    // Show one-time toast about new Spirit Cycle abilities
+    // Show one-time toast about new Celestial Cycle abilities
     if (DEBUG_MODE) {
       console.log('[Cycle Transition] Mortal → Spirit: New abilities unlocked');
     }
@@ -1446,8 +1446,8 @@ function updateCurrentCycle() {
 }
 
 /**
- * Check if player is currently in Spirit Cycle
- * @returns {boolean} True if in Spirit Cycle
+ * Check if player is currently in Celestial
+ * @returns {boolean} True if in Celestial Cycle
  */
 function isInSpiritCycle() {
   const spiritRealms = BAL.cycleDefinitions?.spirit?.realms || [];
@@ -1476,7 +1476,7 @@ function isAtCycleEnd() {
   }
   
   if (S.currentCycle === 'spirit') {
-    // Spirit cycle ends at True Immortal (which has infinite lifespan, so stage check not needed)
+    // Celestial ends at Void Lord (which has infinite lifespan, so stage check not needed)
     return S.realmIndex === lastRealmInCycle;
   }
   
@@ -1487,7 +1487,7 @@ function triggerCycleTransition() {
   const isSpirit = S.currentCycle === 'spirit';
   
   if (isSpirit) {
-    // End of Spirit Cycle - play final cutscene, then final ascension modal.
+    // End of Celestial Cycle - play final cutscene, then final ascension modal.
     queueCutsceneSequence(['final']).then(() => {
       showCycleCompletionModal('final');
     });
@@ -1508,12 +1508,12 @@ function showCycleCompletionModal(type) {
     title = '🌟 Final Ascension';
     message = `
       <div style="text-align: center; margin-bottom: 16px; font-size: 2.5em;">⚡</div>
-      <div style="color: var(--accent); font-weight: 600; margin-bottom: 8px;">The <span class="cycle-spirit">Spirit Cycle</span> is Complete</div>
+      <div style="color: var(--accent); font-weight: 600; margin-bottom: 8px;">The <span class="cycle-spirit">Celestial Cycle</span> is Complete</div>
       <div style="margin-bottom: 16px;">You have transcended all mortal and divine realms. The cosmos itself acknowledges your supremacy.</div>
       <div style="text-align: left; margin: 8px 0;">
         <div><strong>Qi Cultivated:</strong> <span class="highlight">${fmt(S.reinc.lifetimeQi)}</span></div>
         <div><strong>Karma Gained:</strong> <span class="highlight">+${fmt(karmaGain)}</span></div>
-        <div><strong>Cycle:</strong> <span class="cycle-spirit">Spirit Cycle</span> Complete</div>
+        <div><strong>Cycle:</strong> <span class="cycle-spirit">Celestial Cycle</span> Complete</div>
       </div>
       <br><em>Choose to reincarnate and begin anew, or remain in eternal meditation.</em>
     `;
@@ -1527,13 +1527,13 @@ function showCycleCompletionModal(type) {
     message = `
       <div style="text-align: center; margin-bottom: 16px; font-size: 2.5em;">🦋</div>
       <div style="color: var(--accent); font-weight: 600; margin-bottom: 8px;">The <span class="cycle-mortal">Mortal Cycle</span> Ends</div>
-      <div style="margin-bottom: 16px;">Your mortal shell cannot endure further growth. You must transcend to begin the <span class="cycle-spirit">Spirit Cycle</span>.</div>
+      <div style="margin-bottom: 16px;">Your mortal shell cannot endure further growth. You must transcend to begin the <span class="cycle-spirit">Celestial Cycle</span>.</div>
       <div style="text-align: left; margin: 8px 0;">
         <div><strong>Qi Cultivated:</strong> <span class="highlight">${fmt(S.reinc.lifetimeQi)}</span></div>
         <div><strong>Karma Gained:</strong> <span class="highlight">+${fmt(karmaGain)}</span></div>
-        <div><strong>Cycle:</strong> <span class="cycle-mortal">Mortal</span> → <span class="cycle-spirit">Spirit</span></div>
+        <div><strong>Cycle:</strong> <span class="cycle-mortal">Mortal</span> → <span class="cycle-spirit">Celestial</span></div>
       </div>
-      <br><em>The heavens tremble as your <span class="cycle-spirit">Spirit Cycle</span> begins.</em>
+      <br><em>The heavens tremble as your <span class="cycle-spirit">Celestial Cycle</span> begins.</em>
     `;
     onConfirm = () => {
       // Cycle transition reincarnation is system-forced, not voluntary.
@@ -1556,7 +1556,7 @@ function showSpiritTransformationGate() {
       <div><strong>Current Realm:</strong> <span class="highlight">Spirit Transformation, Stage 10</span></div>
       <div><strong>Requirement:</strong> <span class="highlight">Mandatory Reincarnation (One Time Only)</span></div>
       <div><strong>After Reincarnation:</strong></div>
-      <div style="margin-left: 20px;">✓ Unlock the <span class="cycle-spirit">Spirit Cycle</span></div>
+      <div style="margin-left: 20px;">✓ Unlock the <span class="cycle-spirit">Celestial Cycle</span></div>
       <div style="margin-left: 20px;">✓ Advance beyond Spirit Transformation in future lives</div>
       <div style="margin-left: 20px;">✓ <strong>Voluntary Reincarnation</strong> available at Spirit Transformation Stage 1 and all higher realms</div>
     </div>
@@ -1603,7 +1603,7 @@ function karmaStageMult(karma) {
 /**
  * Cycle-based power multiplier (LINEAR within cycle, not compounding)
  * Mortal Cycle: +20% per realm from cycle start
- * Spirit Cycle: +40% per realm from cycle start
+ * Celestial Cycle: +40% per realm from cycle start
  * Returns a single multiplicative factor (not stacking per realm)
  */
 function cyclePowerMult(realmIndex) {
@@ -1644,7 +1644,7 @@ function getSkillCatalog() {
         icon: data.icon || `${id}.png`
       };
       
-      // One-time techniques (Spirit Cycle endgame)
+      // One-time techniques (Celestial Cycle endgame)
       if (data.oneTime) {
         skillDef.oneTime = true;
         skillDef.value = data.value;
@@ -1737,7 +1737,7 @@ function skillKarmaBoost(karma) {
 
 /**
  * Cycle boost: modest in Mortal, larger in Spirit to keep late game relevant
- * Returns 1.0 for Mortal Cycle, 5.0 for Spirit Cycle
+ * Returns 1.0 for Mortal Cycle, 5.0 for Celestial Cycle
  */
 function skillCycleBoost() {
   return S.currentCycle === 'spirit'
@@ -2320,7 +2320,7 @@ function computeKarmaGain(){
   const base = Math.floor(Math.sqrt(safeLifetimeQi / safeDivisor));
   const realmBonus = S.realmIndex * BAL.reincarnation.realmKarmaFactor;
   
-  // Cycle multiplier - Spirit cycle gives more karma
+  // Cycle multiplier - Celestial Cycle gives more karma
   const cycleMultiplier = S.currentCycle === 'spirit' ? 2 : 1;
   
   const totalGain = (base + realmBonus) * cycleMultiplier;
@@ -2447,7 +2447,7 @@ function doReincarnate(options = {}){
     if (mode === 'mandatory') {
       showModal('🌟 Transcendence Achieved', 
         `<span class="highlight">You have broken the shackles of mortality!</span><br><br>
-        Your soul now walks the path of the Spirit Cycle.<br><br>
+        Your soul now walks the path of the Celestial Cycle.<br><br>
         <strong>Voluntary reincarnation is now available</strong> at Spirit Transformation Stage 1 and all higher realms.<br><br>
         <div class="highlight">+${karmaGained} Karma gained (Total: ${totalKarma})</div>`, '🦋');
     } else if (mode === 'death') {
@@ -2518,7 +2518,7 @@ function getMaxLifespan(realmIndex = null){
   const index = realmIndex !== null ? realmIndex : S.realmIndex;
   const maxFromConfig = BAL.lifespan?.realmMaxLifespan?.[index];
   if(maxFromConfig === null || maxFromConfig === undefined) {
-    // True Immortal realm - infinite lifespan
+    // Void Lord realm - infinite lifespan
     return null;
   }
   
@@ -2539,7 +2539,7 @@ function isImmortal(){
 function refreshLifespanForRealm() {
   const max = getMaxLifespan(); // from BAL.lifespan.realmMaxLifespan[S.realmIndex]
   if (max === null) {
-    // True Immortal realm - infinite lifespan
+    // Void Lord realm - infinite lifespan
     S.lifespan = { current: null, max: null };
     S.age = 0; // Immortals don't age
   } else {
@@ -2557,7 +2557,7 @@ function refreshLifespanForRealm() {
 function updateLifespanOnRealmAdvance(){
   const newMax = getMaxLifespan();
   if(newMax === null) {
-    // True Immortal - set infinite lifespan
+    // Void Lord - set infinite lifespan
     S.lifespan.max = null;
     S.lifespan.current = null;
     S.age = 0; // Reset age for immortals
@@ -2584,7 +2584,7 @@ function tickLifespan(dt){
   // Guard: don't age if paused, dead, or no lifespan data
   if(S.timeSpeed?.paused || !S.lifespan || S.isDead) return;
   
-  // Guard: True Immortal realm has infinite lifespan - no aging
+  // Guard: Void Lord realm has infinite lifespan - no aging
   if(isImmortal()) return;
   
   // Guard: don't tick during reincarnation process
@@ -2782,7 +2782,7 @@ const SPEEDS_CONFIG = [
   { speed: 4,    unlockAt: 'nascent_soul' },           // Realm 4
   { speed: 6,    unlockAt: 'void_refining' },          // Realm 6
   { speed: 8,    unlockAt: 'mahayana' },               // Realm 8
-  { speed: 10,   unlockAt: 'true_immortal' }           // Realm 10
+  { speed: 10,   unlockAt: 'void_lord' }           // Realm 10
 ];
 
 /**
@@ -2986,19 +2986,19 @@ function doBreakthrough(){
       updateCurrentCycle(); // Update cycle when moving to new realm
       checkAndUnlockSpeeds(); // Check for new time-speed unlocks
       
-      // Show special message when advancing to spirit realms after unlocking transcendence
+      // Show special message when advancing to celestial realms after unlocking transcendence
       const VR_INDEX = idx('void_refining');
       if(wasSpritTransformation && S.flags.unlockedBeyondSpirit && S.realmIndex === VR_INDEX) {
         setTimeout(() => {
           showModal(
-            '🌟 Spirit Cycle Begins',
-            'You have transcended beyond mortal limitations and entered the Spirit Cycle! Your cultivation now follows the celestial path of divine realms.',
+            '🌟 Celestial Cycle Begins',
+            'You have transcended beyond mortal limitations and entered the Celestial Cycle! Your cultivation now follows the celestial path of divine realms.',
             '🌌'
           );
         }, 500);
       }
     } else {
-      // Final ascension at True Immortal Stage 10
+      // Final ascension at Void Lord Stage 10
       triggerCycleTransition();
     }
   }
@@ -3117,7 +3117,7 @@ const ACHIEVEMENTS = [
   {
     id: "reach_golden_core_10",
     title: "Golden Core Perfected",
-    description: "Reach Golden Core, Stage 10 and forge your spiritual core.",
+    description: "Reach Golden Core, Stage 10 and perfect your spiritual core.",
     icon: "⚡",
     category: "Progression",
     hiddenUntilUnlocked: false,
@@ -3126,29 +3126,29 @@ const ACHIEVEMENTS = [
   {
     id: "reach_nascent_soul_10",
     title: "Soul Awakened",
-    description: "Reach Nascent Soul, Stage 10 and awaken your spiritual consciousness.",
+    description: "Reach Nascent Soul and awaken your spiritual consciousness.",
     icon: "👁️",
     category: "Progression",
     hiddenUntilUnlocked: false,
-    requirement: ({ realmIndex, stage }) => realmIndex === idx('nascent_soul') && stage === 10
+    requirement: ({ realmIndex, stage }) => realmIndex === idx('nascent_soul') && stage === 1
   },
   {
     id: "reach_spirit_transform_10",
     title: "Spirit Transformed",
-    description: "Reach Spirit Transformation, Stage 10 and transcend your mortal form.",
+    description: "Reach Spirit Transformation, transcend your mortal form and transform into a God.",
     icon: "🦋",
     category: "Progression",
     hiddenUntilUnlocked: false,
-    requirement: ({ realmIndex, stage }) => realmIndex === idx('spirit_transformation') && stage === 10
+    requirement: ({ realmIndex, stage }) => realmIndex === idx('spirit_transformation') && stage === 1
   },
   {
     id: "reach_void_refining_10",
     title: "Void Walker",
-    description: "Reach Void Refining, Stage 10 and master the emptiness between worlds.",
+    description: "Reach Void Refining and master the emptiness between worlds.",
     icon: "🌌",
     category: "Progression",
     hiddenUntilUnlocked: false,
-    requirement: ({ realmIndex, stage }) => realmIndex === idx('void_refining') && stage === 10
+    requirement: ({ realmIndex, stage }) => realmIndex === idx('void_refining') && stage === 1
   },
   {
     id: "reach_body_integration_10",
@@ -3161,30 +3161,30 @@ const ACHIEVEMENTS = [
   },
   {
     id: "reach_mahayana_10",
-    title: "Great Vehicle Master",
-    description: "Reach Mahayana, Stage 10 and walk the supreme path.",
-    icon: "🚗",
+    title: "True Immortal",
+    description: "Reach Mahayana and become a true immortal.",
+    icon: "🔥",
     category: "Progression",
     hiddenUntilUnlocked: false,
-    requirement: ({ realmIndex, stage }) => realmIndex === idx('mahayana') && stage === 10
+    requirement: ({ realmIndex, stage }) => realmIndex === idx('mahayana') && stage === 1
   },
   {
     id: "reach_tribulation_10",
-    title: "Tribulation Survivor",
-    description: "Reach Tribulation Transcendence, Stage 10 and overcome heavenly judgment.",
+    title: "Profound Immortal",
+    description: "Reach Tribulation Transcendence and become king of deities.",
     icon: "⚡",
     category: "Progression",
     hiddenUntilUnlocked: false,
-    requirement: ({ realmIndex, stage }) => realmIndex === idx('tribulation_transcendence') && stage === 10
+    requirement: ({ realmIndex, stage }) => realmIndex === idx('tribulation_transcendence') && stage === 1
   },
   {
-    id: "reach_true_immortal",
-    title: "True Immortal",
-    description: "Ascend to True Immortal realm and achieve eternal existence.",
+    id: "reach_void_lord",
+    title: "Void Lord",
+    description: "Ascend to Void Lord realm and achieve eternal existence.",
     icon: "🌟",
     category: "Progression",
     hiddenUntilUnlocked: false,
-    requirement: ({ realmIndex }) => realmIndex >= idx('true_immortal')
+    requirement: ({ realmIndex }) => realmIndex >= idx('void_lord')
   },
 
   // Reincarnation Achievements
@@ -3316,7 +3316,7 @@ const ACHIEVEMENTS = [
   {
     id: "end_mortal_cycle",
     title: "End of the Mortal Cycle",
-    description: "Complete the Mortal Cycle and transcend to Spirit Cultivation.",
+    description: "Complete the Mortal Cycle and transcend to Celestial Cultivation.",
     icon: "🦋",
     category: "Progression",
     hiddenUntilUnlocked: false,
@@ -3325,7 +3325,7 @@ const ACHIEVEMENTS = [
   {
     id: "spirit_ascendant",
     title: "Spirit Ascendant",
-    description: "Begin the Spirit Cycle and walk the celestial path.",
+    description: "Begin the Celestial Cycle and walk the celestial path.",
     icon: "🌌",
     category: "Progression",
     hiddenUntilUnlocked: false,
@@ -3343,7 +3343,7 @@ const ACHIEVEMENTS = [
   {
     id: "celestial_eternity",
     title: "Celestial Eternity",
-    description: "Complete the Spirit Cycle and achieve ultimate transcendence.",
+    description: "Complete the Celestial Cycle and achieve ultimate transcendence.",
     icon: "♾️",
     category: "Progression",
     hiddenUntilUnlocked: false,
@@ -3353,7 +3353,7 @@ const ACHIEVEMENTS = [
     id: "break_mortal_shackles",
     title: "Break the Mortal Shackles",
     description: "Reincarnate at Spirit Transformation Stage 10 to unlock transcendence beyond mortal limits.",
-    icon: "�",
+    icon: "⛓️",
     category: "Progression",
     hiddenUntilUnlocked: false,
     requirement: ({ unlockedBeyondSpirit }) => unlockedBeyondSpirit === true
@@ -3417,7 +3417,7 @@ const ACHIEVEMENTS = [
   {
     id: "cycle_breaker",
     title: "Cycle Breaker",
-    description: "Complete the Spirit Cycle without any forced reincarnations. Death fears you.",
+    description: "Complete the Celestial Cycle without any forced reincarnations. Death fears you.",
     icon: "🔗",
     category: "Impossible",
     hiddenUntilUnlocked: true,
@@ -3426,12 +3426,12 @@ const ACHIEVEMENTS = [
   },
   {
     id: "realm_infinite",
-    title: "Beyond True Immortal",
-    description: "Reach a realm beyond True Immortal. The impossible becomes possible.",
+    title: "Beyond Void Lord",
+    description: "Reach a realm beyond Void Lord. The impossible becomes possible.",
     icon: "🌟",
     category: "Impossible",
     hiddenUntilUnlocked: true,
-    requirement: ({ realmIndex }) => realmIndex > idx('true_immortal')
+    requirement: ({ realmIndex }) => realmIndex > idx('void_lord')
   },
   {
     id: "dao_god",
@@ -3459,7 +3459,7 @@ const UNLOCKS = {
   speed_4x: { requirement: ({ realmIndex }) => realmIndex >= idx('spirit_transformation'), text: "Reach Spirit Transformation realm to unlock 4× time flow." },
   speed_6x: { requirement: ({ realmIndex }) => realmIndex >= idx('body_integration'), text: "Reach Body Integration realm to unlock 6× time flow." },
   speed_8x: { requirement: ({ realmIndex }) => realmIndex >= idx('tribulation_transcendence'), text: "Reach Tribulation Transcendence realm to unlock 8× time flow." },
-  speed_10x: { requirement: ({ realmIndex }) => realmIndex >= idx('true_immortal'), text: "Reach True Immortal realm to unlock 10× time flow." }
+  speed_10x: { requirement: ({ realmIndex }) => realmIndex >= idx('void_lord'), text: "Reach Void Lord realm to unlock 10× time flow." }
 };
 
 // Achievement state management
@@ -3569,7 +3569,7 @@ function revalidateRealmAchievements() {
   const realmAchievements = ACHIEVEMENTS.filter(a => 
     a.category === 'Progression' && 
     a.id.includes('reach_') &&
-    !a.id.includes('immortal') // Skip True Immortal check as it's >= based
+    !a.id.includes('immortal') // Skip Void Lord check as it's >= based
   );
   
   let revalidatedCount = 0;
@@ -5333,7 +5333,7 @@ document.addEventListener('keydown', (e)=>{
     const maxLifespan = getMaxLifespan();
     if(!S.lifespan) {
       if(maxLifespan === null) {
-        // True Immortal - infinite lifespan
+        // Void Lord - infinite lifespan
         S.lifespan = { current: null, max: null };
       } else {
         S.lifespan = { current: maxLifespan, max: maxLifespan };
